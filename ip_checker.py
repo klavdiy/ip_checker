@@ -14,7 +14,7 @@ import re
 import time
 from contextlib import redirect_stdout
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List, Dict, Optional
 import urllib.request
 import urllib.error
@@ -60,6 +60,7 @@ TRANSLATIONS = {
         "expected_country": "Expected Country: ",
         "actual_country": "Actual Country: ",
         "pool": "Pool: ",
+        "provider_owner": "Provider: ",
         "ip_not_found": "⚠ IP not found in any ASN pool",
         "offer_reclassify": "⚠ MISMATCH FOUND!\nWould you like to reclassify this ASN? (y/n): ",
         "reclassification": "MISMATCH RECLASSIFICATION PROCESS",
@@ -107,6 +108,13 @@ TRANSLATIONS = {
         "unknown_ip_asn_prompt": "Enter ASN (e.g., AS12345 or 12345): ",
         "unknown_ip_asn_skipped": "ASN not provided. Skipping database entry.",
         "unknown_ip_asn_detect_failed": "Could not detect ASN from WHOIS.",
+        "db_update_prompt": "Database update check is required - last check was ",
+        "db_update_prompt_days": " days ago. Update now? (y/n): ",
+        "db_update_success": "Database updated",
+        "db_update_failed": "Database update failed. Reason: ",
+        "db_update_started": "Updating database...",
+        "db_update_postpone": "Update reminder postponed for 7 days.",
+        "db_update_invalid_yes_no": "Invalid input. Please enter only y or n.",
     },
     "ru": {
         "menu_title": "═══════════════════════════════════════════════════════════",
@@ -124,6 +132,7 @@ TRANSLATIONS = {
         "expected_country": "Ожидаемая страна: ",
         "actual_country": "Фактическая страна: ",
         "pool": "Пул: ",
+        "provider_owner": "Провайдер: ",
         "ip_not_found": "⚠ IP не найден в пулах БД",
         "offer_reclassify": "⚠ НАЙДЕНО НЕСООТВЕТСТВИЕ!\nХотите переклассифицировать этот ASN? (y/n): ",
         "reclassification": "ПРОЦЕСС ПЕРЕКЛАССИФИКАЦИИ ASN",
@@ -170,6 +179,13 @@ TRANSLATIONS = {
         "unknown_ip_asn_prompt": "Введите ASN (например, AS12345 или 12345): ",
         "unknown_ip_asn_skipped": "ASN не предоставлен. Пропуск добавления в БД.",
         "unknown_ip_asn_detect_failed": "Не удалось определить ASN из WHOIS.",
+        "db_update_prompt": "Нужно проверить обновление базы - последняя проверка ",
+        "db_update_prompt_days": " дней назад. Обновить сейчас? (y/n): ",
+        "db_update_success": "База обновлена",
+        "db_update_failed": "Ошибка обновления. Причина: ",
+        "db_update_started": "Обновление базы...",
+        "db_update_postpone": "Напоминание об обновлении отложено на 7 дней.",
+        "db_update_invalid_yes_no": "Неверный ввод. Введите только y или n.",
     }
 }
 
@@ -228,13 +244,106 @@ def load_database() -> Dict:
     """Load ASN database from JSON file"""
     try:
         with open(DATABASE_FILE, 'r', encoding='utf-8') as f:
-            return json.load(f)
+            database = json.load(f)
+            ensure_database_metadata(database)
+            return database
     except FileNotFoundError:
         print(f"{Colors.FAIL}Error: Database file not found{Colors.ENDC}")
         sys.exit(1)
     except json.JSONDecodeError:
         print(f"{Colors.FAIL}Error: Invalid JSON in database{Colors.ENDC}")
         sys.exit(1)
+
+def save_database(database: Dict) -> None:
+    """Persist ASN database to JSON file."""
+    with open(DATABASE_FILE, 'w', encoding='utf-8') as f:
+        json.dump(database, f, indent=2, ensure_ascii=False)
+
+def ensure_database_metadata(database: Dict) -> None:
+    """Ensure required metadata fields exist."""
+    metadata = database.setdefault('metadata', {})
+    if 'last_updated' not in metadata:
+        metadata['last_updated'] = datetime.now().strftime("%Y-%m-%d")
+    if 'last_update_check' not in metadata:
+        metadata['last_update_check'] = metadata.get('last_updated')
+    if 'next_update_prompt_after' not in metadata:
+        metadata['next_update_prompt_after'] = metadata.get('last_update_check')
+
+def parse_iso_date(date_str: Optional[str]) -> Optional[datetime]:
+    """Parse YYYY-MM-DD into datetime, return None for invalid values."""
+    if not date_str:
+        return None
+    try:
+        return datetime.strptime(date_str, "%Y-%m-%d")
+    except ValueError:
+        return None
+
+def update_database_metadata(database: Dict) -> None:
+    """Refresh metadata counters and timestamps."""
+    metadata = database.setdefault('metadata', {})
+    metadata['last_updated'] = datetime.now().strftime("%Y-%m-%d")
+    metadata['total_asns'] = len(database.get('asn_data', []))
+    metadata['total_ip_pools'] = sum(len(a.get('ip_pools', [])) for a in database.get('asn_data', []))
+
+def perform_database_update(database: Dict) -> tuple[bool, Optional[str]]:
+    """Run database maintenance update and save."""
+    try:
+        update_database_metadata(database)
+        today = datetime.now().strftime("%Y-%m-%d")
+        metadata = database.setdefault('metadata', {})
+        metadata['last_update_check'] = today
+        metadata['next_update_prompt_after'] = today
+        save_database(database)
+        return True, None
+    except Exception as exc:
+        return False, str(exc)
+
+def maybe_prompt_database_update(database: Dict) -> None:
+    """Prompt for database update when last check is older than threshold."""
+    ensure_database_metadata(database)
+    metadata = database['metadata']
+    now = datetime.now()
+    check_interval_days = 30
+    postpone_days = 7
+
+    last_update_dt = parse_iso_date(metadata.get('last_updated')) or now
+    next_prompt_dt = parse_iso_date(metadata.get('next_update_prompt_after')) or last_update_dt
+    days_since_check = max(0, (now - last_update_dt).days)
+
+    if now < next_prompt_dt or days_since_check < check_interval_days:
+        return
+
+    while True:
+        print(
+            f"\n{Colors.WARNING}{t('db_update_prompt')}{days_since_check}{t('db_update_prompt_days')}{Colors.ENDC}",
+            end=""
+        )
+        try:
+            choice = input().strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            choice = 'n'
+
+        if choice in ('y', 'n'):
+            break
+        print(f"{Colors.WARNING}{t('db_update_invalid_yes_no')}{Colors.ENDC}")
+
+    today = now.strftime("%Y-%m-%d")
+    metadata['last_update_check'] = today
+
+    if choice == 'y':
+        print(f"{Colors.OKCYAN}{t('db_update_started')}{Colors.ENDC}")
+        ok, reason = perform_database_update(database)
+        if ok:
+            print(f"{Colors.OKGREEN}{t('db_update_success')}{Colors.ENDC}")
+        else:
+            print(f"{Colors.FAIL}{t('db_update_failed')}{reason or 'unknown error'}{Colors.ENDC}")
+    else:
+        metadata['next_update_prompt_after'] = (now + timedelta(days=postpone_days)).strftime("%Y-%m-%d")
+        try:
+            save_database(database)
+            print(f"{Colors.OKCYAN}{t('db_update_postpone')}{Colors.ENDC}")
+        except Exception as exc:
+            print(f"{Colors.FAIL}{t('db_update_failed')}{str(exc)}{Colors.ENDC}")
 
 def get_ip_geolocation(ip: str) -> Optional[Dict]:
     """Get geolocation data for an IP address using ip-api.com"""
@@ -453,8 +562,7 @@ def update_database_entry(database: Dict, ip: str, asn: str, country_code: str, 
         database['metadata']['total_asns'] = len(database['asn_data'])
         database['metadata']['total_ip_pools'] = sum(len(a['ip_pools']) for a in database['asn_data'])
         
-        with open(DATABASE_FILE, 'w', encoding='utf-8') as f:
-            json.dump(database, f, indent=2, ensure_ascii=False)
+        save_database(database)
         
         return True
     except Exception as e:
@@ -511,9 +619,10 @@ def check_single_ip(ip: str, database: Dict, auto_reclass: bool = False) -> Dict
         if expected_country == actual_country:
             result['matches'].append(match_info)
             print(f"{Colors.OKGREEN}{t('matches')}{Colors.ENDC}")
-            print(f"  {t('asn')} {asn_entry['asn']} ({asn_entry['owner']})")
             print(f"  {t('expected_country')} {expected_country} | {t('actual_country')} {actual_country}")
+            print(f"  {t('asn')} {asn_entry['asn']}")
             print(f"  {t('pool')} {pool}")
+            print(f"  {t('provider_owner')} {asn_entry['owner']}")
         else:
             result['mismatches'].append({
                 **match_info,
@@ -521,9 +630,10 @@ def check_single_ip(ip: str, database: Dict, auto_reclass: bool = False) -> Dict
                 'actual_country_name': geo_data['country']
             })
             print(f"{Colors.FAIL}{t('mismatch')}{Colors.ENDC}")
-            print(f"  {t('asn')} {asn_entry['asn']} ({asn_entry['owner']})")
             print(f"  {t('expected_country')} {Colors.OKGREEN}{expected_country} ({asn_entry['expected_country_name']}){Colors.ENDC} | {t('actual_country')} {Colors.FAIL}{actual_country} ({geo_data['country']}){Colors.ENDC}")
+            print(f"  {t('asn')} {asn_entry['asn']}")
             print(f"  {t('pool')} {pool}")
+            print(f"  {t('provider_owner')} {asn_entry['owner']}")
 
             print(f"\n{Colors.WARNING}{t('offer_reclassify')}{Colors.ENDC}", end="")
 
@@ -771,6 +881,7 @@ def check_asn_operator(asn_input: str, database: Dict, auto_reclass: bool = Fals
 def run_cli_mode(args):
     """Run command-line mode when direct arguments are provided."""
     database = load_database()
+    maybe_prompt_database_update(database)
 
     def execute():
         if args.ip:
@@ -836,16 +947,18 @@ def main():
             print("3. 🏢 Проверить ASN оператора")
             print("4. 🌍 Выбрать язык")
             print("5. ℹ️  Справка")
+            print("6. 🔄 Обновить базу")
             print("0. ❌ Выход")
-            prompt_text = "Выберите опцию (0-5): "
+            prompt_text = "Выберите опцию (0-6): "
         else:
             print("1. ✓ Check single IP address")
             print("2. 📊 Check IP range")
             print("3. 🏢 Check ASN operator")
             print("4. 🌍 Change language")
             print("5. ℹ️  Help")
+            print("6. 🔄 Update database")
             print("0. ❌ Exit")
-            prompt_text = "Select option (0-5): "
+            prompt_text = "Select option (0-6): "
         
         try:
             choice = input(f"{Colors.OKCYAN}{prompt_text}{Colors.ENDC}").strip()
@@ -955,6 +1068,15 @@ def main():
             # Show help
             show_help()
         
+        elif choice == "6":
+            print(f"{Colors.OKCYAN}{t('db_update_started')}{Colors.ENDC}")
+            ok, reason = perform_database_update(database)
+            if ok:
+                print(f"{Colors.OKGREEN}{t('db_update_success')}{Colors.ENDC}")
+                database = load_database()
+            else:
+                print(f"{Colors.FAIL}{t('db_update_failed')}{reason or 'unknown error'}{Colors.ENDC}")
+
         else:
             if CURRENT_LANGUAGE == "ru":
                 print(f"{Colors.FAIL}❌ Неверный выбор{Colors.ENDC}")
@@ -996,6 +1118,9 @@ def show_help():
         
         print(f"{Colors.OKCYAN}4. Выбрать язык{Colors.ENDC}")
         print("   Переключение между English и Русский\n")
+
+        print(f"{Colors.OKCYAN}6. Обновить базу{Colors.ENDC}")
+        print("   Обновляет метаданные БД и дату последнего обновления\n")
         
         print(f"{Colors.OKGREEN}✓ При обнаружении несоответствия:{Colors.ENDC}")
         print("  - Система предложит переклассифицировать ASN")
@@ -1019,6 +1144,9 @@ def show_help():
         
         print(f"{Colors.OKCYAN}4. Change language{Colors.ENDC}")
         print("   Switch between English and Русский\n")
+
+        print(f"{Colors.OKCYAN}6. Update database{Colors.ENDC}")
+        print("   Refreshes DB metadata and last update timestamp\n")
         
         print(f"{Colors.OKGREEN}✓ When mismatch is detected:{Colors.ENDC}")
         print("  - System offers to reclassify ASN")
