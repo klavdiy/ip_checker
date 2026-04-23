@@ -541,22 +541,13 @@ def handle_unknown_ip(ip: str, result: Dict, database: Dict) -> None:
         
         asn_to_add = detected_asn
         
-        # If ASN not found, ask user to enter it
+        # If ASN not found, use fallback ASN automatically
         if not detected_asn or detected_asn == 'UNKNOWN' or detected_asn == 'None':
             print(f"{Colors.WARNING}{t('unknown_ip_asn_detect_failed')}{Colors.ENDC}")
-            print(f"{Colors.OKCYAN}{t('unknown_ip_asn_prompt')}{Colors.ENDC}", end="")
-            try:
-                asn_input = input().strip()
-                if asn_input:
-                    asn_to_add = asn_input
-                else:
-                    print(f"{Colors.WARNING}{t('unknown_ip_asn_skipped')}{Colors.ENDC}")
-                    asn_to_add = None
-            except (EOFError, KeyboardInterrupt):
-                asn_to_add = None
+            asn_to_add = 'none_ASN'
         
         if asn_to_add and asn_to_add != 'UNKNOWN':
-            asn_clean = asn_to_add if asn_to_add.startswith('AS') else f'AS{asn_to_add}'
+            asn_clean = asn_to_add if (asn_to_add.startswith('AS') or asn_to_add == 'none_ASN') else f'AS{asn_to_add}'
             success = update_database_entry(
                 database,
                 ip=ip,
