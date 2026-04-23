@@ -92,6 +92,7 @@ TRANSLATIONS = {
         "invalid_ip": "Invalid IP address: ",
         "unknown_ip_title": "Unknown IP Address",
         "unknown_ip_check_offer": "Would you like to verify this IP via WHOIS and add to database? (y/n): ",
+        "unknown_ip_invalid_yes_no": "Invalid input. Please enter only y or n.",
         "unknown_ip_whois": "Checking WHOIS data...",
         "unknown_ip_detected_asn": "Detected ASN: ",
         "unknown_ip_detected_org": "Detected Provider: ",
@@ -154,6 +155,7 @@ TRANSLATIONS = {
         "failed_geo": "✗ Ошибка получения данных геолокации: ",
         "invalid_ip": "Неверный IP адрес: ",
         "unknown_ip_check_offer": "Хотите проверить этот IP через WHOIS и добавить в БД? (y/n): ",
+        "unknown_ip_invalid_yes_no": "Неверный ввод. Введите только y или n.",
         "unknown_ip_whois": "Проверка данных WHOIS...",
         "unknown_ip_detected_asn": "Обнаруженный ASN: ",
         "unknown_ip_detected_org": "Обнаруженный провайдер: ",
@@ -543,11 +545,19 @@ def check_single_ip(ip: str, database: Dict, auto_reclass: bool = False) -> Dict
         result['status'] = 'not_in_database'
         
         # Ask user if they want to verify and add unknown IP
-        print(f"\n{Colors.OKCYAN}{t('unknown_ip_check_offer')}{Colors.ENDC}", end="")
-        try:
-            verify_choice = input().strip().lower()
-        except (EOFError, KeyboardInterrupt):
-            verify_choice = 'n'
+        verify_choice = 'n'
+        while True:
+            print(f"\n{Colors.OKCYAN}{t('unknown_ip_check_offer')}{Colors.ENDC}", end="")
+            try:
+                verify_choice = input().strip().lower()
+            except (EOFError, KeyboardInterrupt):
+                verify_choice = 'n'
+                break
+
+            if verify_choice in ('y', 'n'):
+                break
+
+            print(f"{Colors.WARNING}{t('unknown_ip_invalid_yes_no')}{Colors.ENDC}")
         
         if verify_choice == 'y':
             handle_unknown_ip(ip, result, database)
