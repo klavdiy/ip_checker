@@ -10,6 +10,7 @@ import sys
 import argparse
 import ipaddress
 import io
+import re
 from contextlib import redirect_stdout
 from pathlib import Path
 from datetime import datetime
@@ -265,13 +266,23 @@ def get_whois_data(ip: str) -> Optional[Dict]:
         country = None
         org = None
         
+        asn_patterns = [
+            re.compile(r'\bAS(\d{1,10})\b', re.IGNORECASE),
+            re.compile(r'\basn\s*[:=]?\s*(\d{1,10})\b', re.IGNORECASE),
+            re.compile(r'\borigin(?:as)?\s*[:=]?\s*AS?(\d{1,10})\b', re.IGNORECASE),
+            re.compile(r'\baut-num\s*[:=]?\s*AS?(\d{1,10})\b', re.IGNORECASE),
+        ]
+
         for line in whois_text.split('\n'):
             line_lower = line.lower()
-            if 'asn' in line_lower and 'as' in line:
-                try:
-                    asn = line.split()[-1].strip() if 'as' in line.split()[-1].lower() else None
-                except:
-                    pass
+
+            if asn is None:
+                for pattern in asn_patterns:
+                    match = pattern.search(line)
+                    if match:
+                        asn = f"AS{match.group(1)}"
+                        break
+
             if 'country' in line_lower:
                 parts = line.split(':')
                 if len(parts) > 1:
@@ -541,8 +552,8 @@ def handle_unknown_ip(ip: str, result: Dict, database: Dict) -> None:
         
         asn_to_add = detected_asn
         
-        # If ASN not found, use fallback ASN automatically
-        if not detected_asn or detected_asn == 'UNKNOWN' or detected_asn == 'None':
+        # If ASN not found, use fallback ASN automatically.
+        if not detected_asn or str(detected_asn).upper() in {'UNKNOWN', 'NONE', 'N/A'}:
             print(f"{Colors.WARNING}{t('unknown_ip_asn_detect_failed')}{Colors.ENDC}")
             asn_to_add = 'none_ASN'
         
