@@ -11,6 +11,7 @@ import argparse
 import ipaddress
 import io
 import re
+import time
 from contextlib import redirect_stdout
 from pathlib import Path
 from datetime import datetime
@@ -101,6 +102,7 @@ TRANSLATIONS = {
         "unknown_ip_not_added": "Entry was not added",
         "unknown_ip_back_menu": "Returning to main menu...",
         "unknown_ip_whois_failed": "Failed to get WHOIS data. Returning to main menu...",
+        "unknown_ip_whois_error": "WHOIS error: ",
         "unknown_ip_asn_prompt": "Enter ASN (e.g., AS12345 or 12345): ",
         "unknown_ip_asn_skipped": "ASN not provided. Skipping database entry.",
         "unknown_ip_asn_detect_failed": "Could not detect ASN from WHOIS.",
@@ -162,6 +164,7 @@ TRANSLATIONS = {
         "unknown_ip_not_added": "Запись не была добавлена",
         "unknown_ip_back_menu": "Возврат в главное меню...",
         "unknown_ip_whois_failed": "Не удалось получить данные WHOIS. Возврат в главное меню...",
+        "unknown_ip_whois_error": "Ошибка WHOIS: ",
         "unknown_ip_asn_prompt": "Введите ASN (например, AS12345 или 12345): ",
         "unknown_ip_asn_skipped": "ASN не предоставлен. Пропуск добавления в БД.",
         "unknown_ip_asn_detect_failed": "Не удалось определить ASN из WHOIS.",
@@ -259,7 +262,48 @@ def get_ip_geolocation(ip: str) -> Optional[Dict]:
 def get_whois_data(ip: str) -> Optional[Dict]:
     """Get WHOIS data for an IP address"""
     try:
-        result = subprocess.run(['whois', ip], capture_output=True, text=True, timeout=10)
+        timeout_seconds = 20
+        process = subprocess.Popen(
+            ['whois', ip],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+
+        show_timer = sys.stdout.isatty()
+        start_time = time.monotonic()
+        last_remaining = None
+
+        while process.poll() is None:
+            elapsed = time.monotonic() - start_time
+            remaining = max(0, int(timeout_seconds - elapsed + 0.999))
+
+            if show_timer and remaining != last_remaining:
+                if CURRENT_LANGUAGE == "ru":
+                    print(f"\rWHOIS запрос... осталось {remaining} сек", end="", flush=True)
+                else:
+                    print(f"\rWHOIS request... {remaining}s remaining", end="", flush=True)
+                last_remaining = remaining
+
+            if elapsed >= timeout_seconds:
+                process.kill()
+                stdout, stderr = process.communicate()
+                if show_timer:
+                    print()
+                return {'error': f'timeout after {timeout_seconds}s'}
+
+            time.sleep(0.2)
+
+        stdout, stderr = process.communicate()
+        if show_timer:
+            print("\r" + " " * 60 + "\r", end="", flush=True)
+
+        result = subprocess.CompletedProcess(
+            args=['whois', ip],
+            returncode=process.returncode,
+            stdout=stdout,
+            stderr=stderr
+        )
         whois_text = result.stdout
         
         asn = None
@@ -292,9 +336,18 @@ def get_whois_data(ip: str) -> Optional[Dict]:
                 if len(parts) > 1:
                     org = parts[-1].strip()
         
+        if not whois_text.strip():
+            return {'error': 'empty whois response'}
+
         return {'asn': asn, 'country': country, 'org': org, 'whois_text': whois_text}
-    except Exception as e:
-        return None
+    except subprocess.TimeoutExpired:
+        return {'error': 'timeout after 20s'}
+    except FileNotFoundError:
+        return {'error': 'whois command not found'}
+    except OSError as exc:
+        return {'error': str(exc)}
+    except Exception as exc:
+        return {'error': str(exc)}
 
 def parse_cli_args():
     """Parse command-line arguments for non-interactive mode."""
@@ -509,8 +562,10 @@ def handle_unknown_ip(ip: str, result: Dict, database: Dict) -> None:
     
     whois_data = get_whois_data(ip)
     
-    if not whois_data:
+    if not whois_data or whois_data.get('error'):
         print(f"{Colors.FAIL}{t('unknown_ip_whois_failed')}{Colors.ENDC}")
+        if whois_data and whois_data.get('error'):
+            print(f"{Colors.WARNING}{t('unknown_ip_whois_error')}{whois_data['error']}{Colors.ENDC}")
         return
     
     # Extract pool from IP (example: 83.1.1.1 -> 83.0.0.0/8)
