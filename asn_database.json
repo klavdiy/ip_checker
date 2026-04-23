@@ -382,11 +382,75 @@
       "last_checked": "2026-04-17",
       "verified": false,
       "notes": "Auto-added entry for AS66666"
+    },
+    {
+      "asn": "none_ASN",
+      "owner": "RIPE Network Coordination Centre",
+      "country_code": "LT",
+      "country_name": "Lithuania",
+      "region": "Multi-Regional",
+      "expected_country": "LT",
+      "expected_country_name": "Lithuania",
+      "ip_pools": [
+        "45.0.0.0/8"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-23",
+      "verified": false,
+      "notes": "Auto-added entry for none_ASN"
+    },
+    {
+      "asn": "AS60330",
+      "owner": "Auto-added from IP 93.125.24.158",
+      "country_code": "BY",
+      "country_name": "Belarus",
+      "region": "Multi-Regional",
+      "expected_country": "BY",
+      "expected_country_name": "Belarus",
+      "ip_pools": [
+        "93.0.0.0/8"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-23",
+      "verified": false,
+      "notes": "Auto-added entry for AS60330"
+    },
+    {
+      "asn": "AS42772",
+      "owner": "Unitary enterprise A1",
+      "country_code": "BY",
+      "country_name": "Belarus",
+      "region": "Multi-Regional",
+      "expected_country": "BY",
+      "expected_country_name": "Belarus",
+      "ip_pools": [
+        "37.0.0.0/8"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-23",
+      "verified": false,
+      "notes": "Auto-added entry for AS42772"
+    },
+    {
+      "asn": "AS41700",
+      "owner": "Auto-added from IP 109.126.128.0",
+      "country_code": "BY",
+      "country_name": "Belarus",
+      "region": "Multi-Regional",
+      "expected_country": "BY",
+      "expected_country_name": "Belarus",
+      "ip_pools": [
+        "109.0.0.0/8"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-23",
+      "verified": false,
+      "notes": "Auto-added entry for AS41700"
     }
   ],
   "metadata": {
     "version": "2.0",
-    "last_updated": "2026-04-17",
+    "last_updated": "2026-04-23",
     "description": "Extended database of ASN information with regional operators for RU, BY, KZ, CN, AM",
     "countries": {
       "RU": {
@@ -418,9 +482,14 @@
         "name": "Brazil",
         "operators_count": 0,
         "description": "Brazil operators"
+      },
+      "LT": {
+        "name": "Lithuania",
+        "operators_count": 0,
+        "description": "Lithuania operators"
       }
     },
-    "total_asns": 21,
-    "total_ip_pools": 68
+    "total_asns": 25,
+    "total_ip_pools": 72
   }
 }
