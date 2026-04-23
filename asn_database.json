@@ -1,0 +1,426 @@
+{
+  "asn_data": [
+    {
+      "asn": "AS12389",
+      "owner": "Rostelecom (PJSC)",
+      "country_code": "RU",
+      "country_name": "Russia",
+      "region": "Multi-Regional",
+      "expected_country": "RU",
+      "expected_country_name": "Russia",
+      "ip_pools": [
+        "83.0.0.0/8",
+        "84.0.0.0/8",
+        "85.0.0.0/8",
+        "86.0.0.0/8"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-17",
+      "verified": true,
+      "notes": "Major backbone operator Russia"
+    },
+    {
+      "asn": "AS20485",
+      "owner": "Rostelecom (Moscow regional)",
+      "country_code": "RU",
+      "country_name": "Russia",
+      "region": "Moscow",
+      "expected_country": "RU",
+      "expected_country_name": "Russia",
+      "ip_pools": [
+        "212.79.0.0/16",
+        "212.80.0.0/16",
+        "213.24.0.0/16"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-17",
+      "verified": true,
+      "notes": "Rostelecom Moscow branch"
+    },
+    {
+      "asn": "AS51574",
+      "owner": "MEGAFON (JSC)",
+      "country_code": "RU",
+      "country_name": "Russia",
+      "region": "Multi-Regional",
+      "expected_country": "RU",
+      "expected_country_name": "Russia",
+      "ip_pools": [
+        "91.0.0.0/8",
+        "95.0.0.0/8",
+        "188.0.0.0/8"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-17",
+      "verified": true,
+      "notes": "MEGAFON mobile operator Russia"
+    },
+    {
+      "asn": "AS201776",
+      "owner": "MTS Group (MTS PJSC)",
+      "country_code": "RU",
+      "country_name": "Russia",
+      "region": "Multi-Regional",
+      "expected_country": "RU",
+      "expected_country_name": "Russia",
+      "ip_pools": [
+        "89.0.0.0/8",
+        "217.0.0.0/8",
+        "218.0.0.0/8"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-17",
+      "verified": true,
+      "notes": "MTS mobile operator Russia"
+    },
+    {
+      "asn": "AS39798",
+      "owner": "PRIMACY BROADCAST",
+      "country_code": "RU",
+      "country_name": "Russia",
+      "region": "Multi-Regional",
+      "expected_country": "RU",
+      "expected_country_name": "Russia",
+      "ip_pools": [
+        "193.0.0.0/8",
+        "195.0.0.0/8",
+        "196.0.0.0/8"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-17",
+      "verified": true,
+      "notes": "Broadcast and ISP backbone"
+    },
+    {
+      "asn": "AS42610",
+      "owner": "MPTELECOM",
+      "country_code": "RU",
+      "country_name": "Russia",
+      "region": "Moscow",
+      "expected_country": "RU",
+      "expected_country_name": "Russia",
+      "ip_pools": [
+        "81.0.0.0/8",
+        "213.0.0.0/9"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-17",
+      "verified": true,
+      "notes": "Moscow ISP provider"
+    },
+    {
+      "asn": "AS25159",
+      "owner": "SMARTTEL-AS",
+      "country_code": "RU",
+      "country_name": "Russia",
+      "region": "Moscow",
+      "expected_country": "RU",
+      "expected_country_name": "Russia",
+      "ip_pools": [
+        "194.0.0.0/9",
+        "212.0.0.0/10"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-17",
+      "verified": true,
+      "notes": "Moscow ISP and hosting provider"
+    },
+    {
+      "asn": "AS3216",
+      "owner": "OJSC Beltelecom",
+      "country_code": "BY",
+      "country_name": "Belarus",
+      "region": "Multi-Regional",
+      "expected_country": "BY",
+      "expected_country_name": "Belarus",
+      "ip_pools": [
+        "178.172.0.0/14",
+        "195.19.0.0/16",
+        "193.67.0.0/16"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-17",
+      "verified": true,
+      "notes": "Main telecom operator Belarus"
+    },
+    {
+      "asn": "AS21011",
+      "owner": "Velcom (MTS Belarus)",
+      "country_code": "BY",
+      "country_name": "Belarus",
+      "region": "Multi-Regional",
+      "expected_country": "BY",
+      "expected_country_name": "Belarus",
+      "ip_pools": [
+        "195.24.0.0/16",
+        "195.20.0.0/15",
+        "212.111.0.0/16"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-17",
+      "verified": true,
+      "notes": "Mobile operator Belarus (MTS group)"
+    },
+    {
+      "asn": "AS20912",
+      "owner": "Beltelecom Regional",
+      "country_code": "BY",
+      "country_name": "Belarus",
+      "region": "Regional",
+      "expected_country": "BY",
+      "expected_country_name": "Belarus",
+      "ip_pools": [
+        "212.112.0.0/16",
+        "195.154.0.0/16"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-17",
+      "verified": true,
+      "notes": "Regional Beltelecom branch"
+    },
+    {
+      "asn": "AS9198",
+      "owner": "Kazakhtelecom (KazakhTelecom JSC)",
+      "country_code": "KZ",
+      "country_name": "Kazakhstan",
+      "region": "Multi-Regional",
+      "expected_country": "KZ",
+      "expected_country_name": "Kazakhstan",
+      "ip_pools": [
+        "193.224.0.0/11",
+        "212.42.0.0/16",
+        "212.58.0.0/16",
+        "217.196.0.0/14"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-17",
+      "verified": true,
+      "notes": "Main telecom operator Kazakhstan"
+    },
+    {
+      "asn": "AS20473",
+      "owner": "China Enterprise ICT Solutions Limited",
+      "country_code": "CN",
+      "country_name": "China",
+      "region": "Multi-Regional",
+      "expected_country": "CN",
+      "expected_country_name": "China",
+      "ip_pools": [
+        "210.0.0.0/8",
+        "212.192.0.0/11"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-17",
+      "verified": true,
+      "notes": "Updated: IP geolocation verified as CN (China)"
+    },
+    {
+      "asn": "AS4134",
+      "owner": "China Telecom (CT)",
+      "country_code": "CN",
+      "country_name": "China",
+      "region": "Multi-Regional",
+      "expected_country": "CN",
+      "expected_country_name": "China",
+      "ip_pools": [
+        "1.0.0.0/8",
+        "14.0.0.0/8",
+        "27.0.0.0/9",
+        "36.0.0.0/8",
+        "39.0.0.0/8",
+        "42.0.0.0/8",
+        "49.0.0.0/8",
+        "58.0.0.0/8"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-17",
+      "verified": true,
+      "notes": "Major telecom operator China"
+    },
+    {
+      "asn": "AS9929",
+      "owner": "China Unicom (CU)",
+      "country_code": "CN",
+      "country_name": "China",
+      "region": "Multi-Regional",
+      "expected_country": "CN",
+      "expected_country_name": "China",
+      "ip_pools": [
+        "119.0.0.0/8",
+        "120.0.0.0/8",
+        "121.0.0.0/8",
+        "122.0.0.0/8",
+        "123.0.0.0/8",
+        "124.0.0.0/8",
+        "125.0.0.0/8"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-17",
+      "verified": true,
+      "notes": "China Unicom backbone"
+    },
+    {
+      "asn": "AS55967",
+      "owner": "China Mobile (CMI)",
+      "country_code": "CN",
+      "country_name": "China",
+      "region": "Multi-Regional",
+      "expected_country": "CN",
+      "expected_country_name": "China",
+      "ip_pools": [
+        "111.0.0.0/8",
+        "112.0.0.0/8",
+        "113.0.0.0/8",
+        "114.0.0.0/8",
+        "115.0.0.0/8",
+        "116.0.0.0/8",
+        "117.0.0.0/8",
+        "118.0.0.0/8"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-17",
+      "verified": true,
+      "notes": "China Mobile operator"
+    },
+    {
+      "asn": "AS24400",
+      "owner": "Fiberhome (China)",
+      "country_code": "CN",
+      "country_name": "China",
+      "region": "Regional",
+      "expected_country": "CN",
+      "expected_country_name": "China",
+      "ip_pools": [
+        "210.0.0.0/9",
+        "211.0.0.0/8"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-17",
+      "verified": true,
+      "notes": "Regional ISP provider China"
+    },
+    {
+      "asn": "AS20473",
+      "owner": "Rostelecom Armenia",
+      "country_code": "AM",
+      "country_name": "Armenia",
+      "region": "Yerevan",
+      "expected_country": "AM",
+      "expected_country_name": "Armenia",
+      "ip_pools": [
+        "195.154.0.0/16",
+        "212.50.0.0/16"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-17",
+      "verified": true,
+      "notes": "Rostelecom branch Armenia"
+    },
+    {
+      "asn": "AS39798",
+      "owner": "ArmenTel (Telecom Armenia)",
+      "country_code": "AM",
+      "country_name": "Armenia",
+      "region": "Multi-Regional",
+      "expected_country": "AM",
+      "expected_country_name": "Armenia",
+      "ip_pools": [
+        "195.48.0.0/16",
+        "195.49.0.0/16",
+        "212.9.0.0/16"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-17",
+      "verified": true,
+      "notes": "Main telecom provider Armenia"
+    },
+    {
+      "asn": "AS49788",
+      "owner": "Viva-MTS (Armenia)",
+      "country_code": "AM",
+      "country_name": "Armenia",
+      "region": "Multi-Regional",
+      "expected_country": "AM",
+      "expected_country_name": "Armenia",
+      "ip_pools": [
+        "195.50.0.0/16",
+        "212.61.0.0/16"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-17",
+      "verified": true,
+      "notes": "Mobile operator Armenia (Viva)"
+    },
+    {
+      "asn": "AS28573",
+      "owner": "Auto-added from IP 200.200.200.200",
+      "country_code": "BR",
+      "country_name": "Brazil",
+      "region": "Multi-Regional",
+      "expected_country": "BR",
+      "expected_country_name": "Brazil",
+      "ip_pools": [
+        "200.0.0.0/8"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-17",
+      "verified": false,
+      "notes": "Auto-added entry for AS28573"
+    },
+    {
+      "asn": "AS66666",
+      "owner": "Auto-added from IP 202.202.202.202",
+      "country_code": "CN",
+      "country_name": "China",
+      "region": "Multi-Regional",
+      "expected_country": "CN",
+      "expected_country_name": "China",
+      "ip_pools": [
+        "202.0.0.0/8"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-17",
+      "verified": false,
+      "notes": "Auto-added entry for AS66666"
+    }
+  ],
+  "metadata": {
+    "version": "2.0",
+    "last_updated": "2026-04-17",
+    "description": "Extended database of ASN information with regional operators for RU, BY, KZ, CN, AM",
+    "countries": {
+      "RU": {
+        "name": "Russia",
+        "operators_count": 7,
+        "description": "Russian Federation telecom operators"
+      },
+      "BY": {
+        "name": "Belarus",
+        "operators_count": 3,
+        "description": "Republic of Belarus telecom operators"
+      },
+      "KZ": {
+        "name": "Kazakhstan",
+        "operators_count": 2,
+        "description": "Republic of Kazakhstan telecom operators"
+      },
+      "CN": {
+        "name": "China",
+        "operators_count": 5,
+        "description": "People's Republic of China telecom operators"
+      },
+      "AM": {
+        "name": "Armenia",
+        "operators_count": 3,
+        "description": "Republic of Armenia telecom operators"
+      },
+      "BR": {
+        "name": "Brazil",
+        "operators_count": 0,
+        "description": "Brazil operators"
+      }
+    },
+    "total_asns": 21,
+    "total_ip_pools": 68
+  }
+}
