@@ -446,12 +446,394 @@
       "last_checked": "2026-04-23",
       "verified": false,
       "notes": "Auto-added entry for AS41700"
+    },
+    {
+      "asn": "AS141039",
+      "owner": "Auto-added from IP 185.65.50.104",
+      "country_code": "LT",
+      "country_name": "Lithuania",
+      "region": "Multi-Regional",
+      "expected_country": "LT",
+      "expected_country_name": "Lithuania",
+      "ip_pools": [
+        "185.0.0.0/8"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-26",
+      "verified": false,
+      "notes": "Auto-added entry for AS141039"
+    },
+    {
+      "asn": "AS15169",
+      "owner": "Google LLC",
+      "country_code": "US",
+      "country_name": "United States",
+      "region": "Multi-Regional",
+      "expected_country": "US",
+      "expected_country_name": "United States",
+      "ip_pools": [
+        "8.8.8.0/24",
+        "8.8.4.0/24",
+        "142.250.0.0/15",
+        "172.217.0.0/16",
+        "216.58.192.0/19"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-26",
+      "verified": false,
+      "notes": "Major public prefixes (DNS, GCP edge); reference for geo checks"
+    },
+    {
+      "asn": "AS8075",
+      "owner": "Microsoft Corporation",
+      "country_code": "US",
+      "country_name": "United States",
+      "region": "Multi-Regional",
+      "expected_country": "US",
+      "expected_country_name": "United States",
+      "ip_pools": [
+        "13.64.0.0/11",
+        "20.33.0.0/16",
+        "40.64.0.0/10",
+        "52.96.0.0/12"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-26",
+      "verified": false,
+      "notes": "Azure / Microsoft public cloud ranges (representative)"
+    },
+    {
+      "asn": "AS16509",
+      "owner": "Amazon.com Inc.",
+      "country_code": "US",
+      "country_name": "United States",
+      "region": "Multi-Regional",
+      "expected_country": "US",
+      "expected_country_name": "United States",
+      "ip_pools": [
+        "3.0.0.0/9",
+        "52.84.0.0/14",
+        "54.192.0.0/12",
+        "99.79.0.0/16"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-26",
+      "verified": false,
+      "notes": "AWS public prefixes (representative)"
+    },
+    {
+      "asn": "AS6185",
+      "owner": "Apple Inc.",
+      "country_code": "US",
+      "country_name": "United States",
+      "region": "Multi-Regional",
+      "expected_country": "US",
+      "expected_country_name": "United States",
+      "ip_pools": [
+        "17.0.0.0/9",
+        "17.248.0.0/16",
+        "17.253.0.0/16",
+        "2620:149:a::/48"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-26",
+      "verified": false,
+      "notes": "Apple services / iCloud edge (includes IPv6 sample)"
+    },
+    {
+      "asn": "AS32934",
+      "owner": "Meta Platforms Inc.",
+      "country_code": "US",
+      "country_name": "United States",
+      "region": "Multi-Regional",
+      "expected_country": "US",
+      "expected_country_name": "United States",
+      "ip_pools": [
+        "31.13.64.0/18",
+        "157.240.0.0/16",
+        "129.134.0.0/16"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-26",
+      "verified": false,
+      "notes": "Facebook / Instagram / WhatsApp edge"
+    },
+    {
+      "asn": "AS40027",
+      "owner": "Netflix Streaming Services Inc.",
+      "country_code": "US",
+      "country_name": "United States",
+      "region": "Multi-Regional",
+      "expected_country": "US",
+      "expected_country_name": "United States",
+      "ip_pools": [
+        "108.175.32.0/20",
+        "185.2.220.0/22",
+        "198.38.96.0/19"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-26",
+      "verified": false,
+      "notes": "Netflix Open Connect / streaming"
+    },
+    {
+      "asn": "AS31898",
+      "owner": "Oracle Corporation",
+      "country_code": "US",
+      "country_name": "United States",
+      "region": "Multi-Regional",
+      "expected_country": "US",
+      "expected_country_name": "United States",
+      "ip_pools": [
+        "134.70.0.0/16",
+        "141.145.0.0/16",
+        "192.29.96.0/20"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-26",
+      "verified": false,
+      "notes": "Oracle Cloud public ranges"
+    },
+    {
+      "asn": "AS36351",
+      "owner": "IBM / SoftLayer Technologies Inc.",
+      "country_code": "US",
+      "country_name": "United States",
+      "region": "Multi-Regional",
+      "expected_country": "US",
+      "expected_country_name": "United States",
+      "ip_pools": [
+        "169.61.0.0/16",
+        "169.62.0.0/16",
+        "161.26.0.0/16"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-26",
+      "verified": false,
+      "notes": "IBM Cloud / SoftLayer"
+    },
+    {
+      "asn": "AS14361",
+      "owner": "Salesforce.com Inc.",
+      "country_code": "US",
+      "country_name": "United States",
+      "region": "Multi-Regional",
+      "expected_country": "US",
+      "expected_country_name": "United States",
+      "ip_pools": [
+        "136.110.0.0/16",
+        "204.14.232.0/22",
+        "185.79.232.0/22"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-26",
+      "verified": false,
+      "notes": "Salesforce SaaS edge"
+    },
+    {
+      "asn": "AS15224",
+      "owner": "Adobe Inc.",
+      "country_code": "US",
+      "country_name": "United States",
+      "region": "Multi-Regional",
+      "expected_country": "US",
+      "expected_country_name": "United States",
+      "ip_pools": [
+        "192.147.0.0/16",
+        "52.10.0.0/15",
+        "130.248.0.0/16"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-26",
+      "verified": false,
+      "notes": "Adobe Creative Cloud / Experience Cloud"
+    },
+    {
+      "asn": "AS109",
+      "owner": "Cisco Systems Inc.",
+      "country_code": "US",
+      "country_name": "United States",
+      "region": "Multi-Regional",
+      "expected_country": "US",
+      "expected_country_name": "United States",
+      "ip_pools": [
+        "64.100.0.0/16",
+        "72.163.0.0/16",
+        "128.107.0.0/16"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-26",
+      "verified": false,
+      "notes": "Cisco corporate / services"
+    },
+    {
+      "asn": "AS12587",
+      "owner": "SAP SE",
+      "country_code": "DE",
+      "country_name": "Germany",
+      "region": "Multi-Regional",
+      "expected_country": "DE",
+      "expected_country_name": "Germany",
+      "ip_pools": [
+        "155.56.0.0/16",
+        "194.39.96.0/22",
+        "185.86.120.0/22"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-26",
+      "verified": false,
+      "notes": "SAP corporate / cloud edge"
+    },
+    {
+      "asn": "AS136907",
+      "owner": "Huawei Technologies Co. Ltd.",
+      "country_code": "CN",
+      "country_name": "China",
+      "region": "Multi-Regional",
+      "expected_country": "CN",
+      "expected_country_name": "China",
+      "ip_pools": [
+        "103.39.200.0/22",
+        "121.36.0.0/16",
+        "139.159.0.0/16"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-26",
+      "verified": false,
+      "notes": "Huawei cloud / services (representative)"
+    },
+    {
+      "asn": "AS45090",
+      "owner": "Tencent Building Kejizhongyi Avenue",
+      "country_code": "CN",
+      "country_name": "China",
+      "region": "Multi-Regional",
+      "expected_country": "CN",
+      "expected_country_name": "China",
+      "ip_pools": [
+        "101.226.0.0/16",
+        "157.255.0.0/16",
+        "109.244.0.0/16"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-26",
+      "verified": false,
+      "notes": "Tencent / WeChat / QQ edge"
+    },
+    {
+      "asn": "AS45102",
+      "owner": "Alibaba US Technology Co. Ltd.",
+      "country_code": "CN",
+      "country_name": "China",
+      "region": "Multi-Regional",
+      "expected_country": "CN",
+      "expected_country_name": "China",
+      "ip_pools": [
+        "47.88.0.0/16",
+        "47.89.0.0/16",
+        "47.90.0.0/15",
+        "121.40.0.0/16"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-26",
+      "verified": false,
+      "notes": "Alibaba Cloud public prefixes"
+    },
+    {
+      "asn": "AS138699",
+      "owner": "ByteDance Ltd.",
+      "country_code": "SG",
+      "country_name": "Singapore",
+      "region": "Multi-Regional",
+      "expected_country": "SG",
+      "expected_country_name": "Singapore",
+      "ip_pools": [
+        "103.136.220.0/22",
+        "185.255.56.0/22",
+        "199.59.148.0/22"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-26",
+      "verified": false,
+      "notes": "TikTok / ByteDance CDN (often announced from SG/US)"
+    },
+    {
+      "asn": "AS6619",
+      "owner": "SamsungSDS",
+      "country_code": "KR",
+      "country_name": "South Korea",
+      "region": "Multi-Regional",
+      "expected_country": "KR",
+      "expected_country_name": "South Korea",
+      "ip_pools": [
+        "211.45.0.0/16",
+        "203.247.160.0/20",
+        "218.144.0.0/12"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-26",
+      "verified": false,
+      "notes": "Samsung SDS / cloud"
+    },
+    {
+      "asn": "AS13884",
+      "owner": "NVIDIA Corporation",
+      "country_code": "US",
+      "country_name": "United States",
+      "region": "Multi-Regional",
+      "expected_country": "US",
+      "expected_country_name": "United States",
+      "ip_pools": [
+        "209.40.112.0/20",
+        "216.228.112.0/20",
+        "66.102.0.0/18"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-26",
+      "verified": false,
+      "notes": "NVIDIA corporate / developer"
+    },
+    {
+      "asn": "AS20940",
+      "owner": "Akamai International B.V.",
+      "country_code": "NL",
+      "country_name": "Netherlands",
+      "region": "Multi-Regional",
+      "expected_country": "NL",
+      "expected_country_name": "Netherlands",
+      "ip_pools": [
+        "23.48.0.0/16",
+        "184.24.0.0/16",
+        "184.25.0.0/16"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-26",
+      "verified": false,
+      "notes": "Akamai CDN (representative public prefixes; not exhaustive)"
+    },
+    {
+      "asn": "AS8708",
+      "owner": "Dell Technologies Inc.",
+      "country_code": "US",
+      "country_name": "United States",
+      "region": "Multi-Regional",
+      "expected_country": "US",
+      "expected_country_name": "United States",
+      "ip_pools": [
+        "143.166.0.0/16",
+        "128.221.0.0/16",
+        "12.26.0.0/16"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-26",
+      "verified": false,
+      "notes": "Dell corporate / support networks (representative)"
     }
   ],
   "metadata": {
     "version": "2.0",
-    "last_updated": "2026-04-23",
-    "description": "Extended database of ASN information with regional operators for RU, BY, KZ, CN, AM",
+    "last_updated": "2026-04-26",
+    "description": "Extended database of ASN information with regional operators for RU, BY, KZ, CN, AM Includes reference ASNs for major global IT/cloud vendors.",
     "countries": {
       "RU": {
         "name": "Russia",
@@ -470,7 +852,7 @@
       },
       "CN": {
         "name": "China",
-        "operators_count": 5,
+        "operators_count": 8,
         "description": "People's Republic of China telecom operators"
       },
       "AM": {
@@ -487,9 +869,36 @@
         "name": "Lithuania",
         "operators_count": 0,
         "description": "Lithuania operators"
+      },
+      "US": {
+        "name": "United States",
+        "operators_count": 13,
+        "description": "United States operators (IT reference)"
+      },
+      "DE": {
+        "name": "Germany",
+        "operators_count": 1,
+        "description": "Germany operators (IT reference)"
+      },
+      "KR": {
+        "name": "South Korea",
+        "operators_count": 1,
+        "description": "South Korea operators (IT reference)"
+      },
+      "SG": {
+        "name": "Singapore",
+        "operators_count": 1,
+        "description": "Singapore operators (IT reference)"
+      },
+      "NL": {
+        "name": "Netherlands",
+        "operators_count": 1,
+        "description": "Netherlands operators (IT reference)"
       }
     },
-    "total_asns": 25,
-    "total_ip_pools": 72
+    "total_asns": 46,
+    "total_ip_pools": 139,
+    "last_update_check": "2026-04-23",
+    "next_update_prompt_after": "2026-04-23"
   }
 }
