@@ -19,6 +19,10 @@ from typing import List, Dict, Optional
 import urllib.request
 import urllib.error
 import subprocess
+import platform
+import shutil
+import os
+import signal
 
 # Configuration
 SCRIPT_DIR = Path(__file__).parent
@@ -115,6 +119,27 @@ TRANSLATIONS = {
         "db_update_started": "Updating database...",
         "db_update_postpone": "Update reminder postponed for 7 days.",
         "db_update_invalid_yes_no": "Invalid input. Please enter only y or n.",
+        "startup_public_ip": "Public IP: ",
+        "startup_location": "Location: ",
+        "startup_isp": "ISP: ",
+        "startup_asn": "ASN: ",
+        "startup_fetch_fail": "Could not detect public IP (offline or API error).",
+        "abuse_contact": "Abuse / complaints: ",
+        "abuse_not_found": "(not found in WHOIS — check RIR WHOIS for this prefix)",
+        "abuse_whois_lookup": "Looking up abuse contact (WHOIS)...",
+        "tools_menu_title": "Additional network tools (checked IP)",
+        "tools_1": "1. nmap (run with -A -T4)",
+        "tools_2": "2. traceroute / tracert to 8.8.8.8 (max 20 hops, bounded wait)",
+        "tools_nmap_interrupt_hint": "Stop nmap: Ctrl+C or Ctrl+Z — return to this menu",
+        "tools_nmap_interrupt_hint_win": "Stop nmap: Ctrl+C — return to this menu",
+        "tools_nmap_interrupted": "nmap stopped — back to tools menu.",
+        "tools_3": "3. nslookup  (this IP, system resolver)",
+        "tools_0": "0. Skip / back",
+        "tools_prompt": "Select (0-3): ",
+        "tools_running": "Running: ",
+        "tools_done": "— done —",
+        "tools_cmd_missing": "Command not found in PATH: ",
+        "tools_invalid": "Invalid choice.",
     },
     "ru": {
         "menu_title": "═══════════════════════════════════════════════════════════",
@@ -186,6 +211,27 @@ TRANSLATIONS = {
         "db_update_started": "Обновление базы...",
         "db_update_postpone": "Напоминание об обновлении отложено на 7 дней.",
         "db_update_invalid_yes_no": "Неверный ввод. Введите только y или n.",
+        "startup_public_ip": "Публичный IP: ",
+        "startup_location": "Локация: ",
+        "startup_isp": "Провайдер: ",
+        "startup_asn": "ASN: ",
+        "startup_fetch_fail": "Не удалось определить публичный IP (сеть или ошибка API).",
+        "abuse_contact": "Abuse / жалобы: ",
+        "abuse_not_found": "(не найдено в WHOIS — смотрите WHOIS RIR для этого префикса)",
+        "abuse_whois_lookup": "Поиск abuse-контакта (WHOIS)...",
+        "tools_menu_title": "Доп. сетевые инструменты (проверяемый IP)",
+        "tools_1": "1. nmap (запуск с ключами -A -T4)",
+        "tools_2": "2. traceroute / tracert до 8.8.8.8 (макс. 20 хопов, ограниченное ожидание)",
+        "tools_nmap_interrupt_hint": "Остановить nmap: Ctrl+C или Ctrl+Z — возврат в это меню",
+        "tools_nmap_interrupt_hint_win": "Остановить nmap: Ctrl+C — возврат в это меню",
+        "tools_nmap_interrupted": "nmap остановлен — возврат в меню инструментов.",
+        "tools_3": "3. nslookup  (этот IP, системный резолвер)",
+        "tools_0": "0. Пропуск / назад",
+        "tools_prompt": "Выберите (0-3): ",
+        "tools_running": "Запуск: ",
+        "tools_done": "— готово —",
+        "tools_cmd_missing": "Команда не найдена в PATH: ",
+        "tools_invalid": "Неверный выбор.",
     }
 }
 
@@ -370,10 +416,243 @@ def get_ip_geolocation(ip: str) -> Optional[Dict]:
     except Exception as e:
         return {'ip': ip, 'error': str(e), 'success': False}
 
-def get_whois_data(ip: str) -> Optional[Dict]:
+def get_own_public_egress_info() -> Optional[Dict]:
+    """Public egress IP and brief geo for this machine (ip-api.com, no target IP in URL)."""
+    try:
+        url = "http://ip-api.com/json/?fields=status,query,country,countryCode,city,isp,org,as"
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=6) as response:
+            data = json.loads(response.read().decode("utf-8"))
+        if data.get("status") != "success":
+            return None
+        return {
+            "ip": data.get("query"),
+            "country": data.get("country"),
+            "country_code": data.get("countryCode"),
+            "city": data.get("city"),
+            "isp": data.get("isp"),
+            "org": data.get("org"),
+            "asn": data.get("as"),
+        }
+    except Exception:
+        return None
+
+def print_startup_connection_banner() -> None:
+    """ASCII frame with this host's public egress info (once per process)."""
+    info = get_own_public_egress_info()
+    inner_w = 58
+    top = "+" + ("=" * inner_w) + "+"
+
+    def row(text: str) -> str:
+        text = text.replace("\r", " ")
+        if len(text) > inner_w - 2:
+            text = text[: max(1, inner_w - 5)] + "..."
+        pad = inner_w - 2 - len(text)
+        return "| " + text + (" " * max(0, pad)) + " |"
+
+    # Keep startup frame compact and readable in narrow terminals.
+    print(f"\n{Colors.OKBLUE}{top}{Colors.ENDC}")
+    if info and info.get("ip"):
+        loc = f"{info.get('city') or ''}, {info.get('country') or ''}".strip(", ").strip()
+        print(f"{Colors.OKCYAN}{row(t('startup_public_ip') + str(info.get('ip')))}{Colors.ENDC}")
+        print(f"{Colors.OKCYAN}{row(t('startup_location') + loc)}{Colors.ENDC}")
+        isp = (info.get("isp") or info.get("org") or "")[: max(0, inner_w - 12)]
+        print(f"{Colors.OKCYAN}{row(t('startup_isp') + isp)}{Colors.ENDC}")
+        asn = (info.get("asn") or "")[: max(0, inner_w - 8)]
+        if asn:
+            print(f"{Colors.OKCYAN}{row(t('startup_asn') + asn)}{Colors.ENDC}")
+    else:
+        print(f"{Colors.WARNING}{row(t('startup_fetch_fail'))}{Colors.ENDC}")
+    print(f"{Colors.OKBLUE}{top}{Colors.ENDC}\n")
+
+_ABUSE_LINE_PATTERNS = [
+    re.compile(r"^\s*abuse-mailbox\s*:\s*(.+)$", re.IGNORECASE | re.MULTILINE),
+    re.compile(r"^\s*abuse-e-mail\s*:\s*(.+)$", re.IGNORECASE | re.MULTILINE),
+    re.compile(r"^\s*orgabuseemail\s*:\s*(.+)$", re.IGNORECASE | re.MULTILINE),
+    re.compile(r"^\s*abuse-c\s*:\s*(.+)$", re.IGNORECASE | re.MULTILINE),
+    re.compile(r"^\s*% abuse contact for .+?:\s*(.+)$", re.IGNORECASE | re.MULTILINE),
+]
+
+def parse_abuse_from_whois(whois_text: str) -> Optional[str]:
+    """Best-effort abuse contact from WHOIS text."""
+    if not whois_text:
+        return None
+    found: List[str] = []
+    for pat in _ABUSE_LINE_PATTERNS:
+        for m in pat.finditer(whois_text):
+            val = (m.group(1) or "").strip()
+            if val and val not in found:
+                found.append(val)
+    if not found:
+        return None
+    return " | ".join(found[:3])
+
+def print_abuse_line_from_whois_text(whois_text: str) -> None:
+    abuse = parse_abuse_from_whois(whois_text)
+    if abuse:
+        print(f"{Colors.OKCYAN}{t('abuse_contact')}{Colors.ENDC}{abuse}")
+    else:
+        print(f"{Colors.OKCYAN}{t('abuse_contact')}{Colors.ENDC}{t('abuse_not_found')}")
+
+def fetch_and_print_abuse_contact(ip: str, whois_timeout: int = 14) -> None:
+    """WHOIS lookup and print abuse line (may be slow)."""
+    if sys.stdout.isatty():
+        print(f"{Colors.WARNING}{t('abuse_whois_lookup')}{Colors.ENDC}")
+    w = get_whois_data(ip, timeout_seconds=whois_timeout)
+    if w and w.get("whois_text"):
+        print_abuse_line_from_whois_text(w["whois_text"])
+    elif w and w.get("error"):
+        print(f"{Colors.OKCYAN}{t('abuse_contact')}{Colors.ENDC}{t('abuse_not_found')} ({w['error']})")
+    else:
+        print(f"{Colors.OKCYAN}{t('abuse_contact')}{Colors.ENDC}{t('abuse_not_found')}")
+
+def run_external_tool(argv: List[str]) -> None:
+    """Run a command with inherited stdio."""
+    try:
+        subprocess.run(argv, check=False)
+    except FileNotFoundError:
+        print(f"{Colors.FAIL}{t('tools_cmd_missing')}{argv[0]}{Colors.ENDC}")
+    except OSError as exc:
+        print(f"{Colors.FAIL}{str(exc)}{Colors.ENDC}")
+
+
+def _terminate_process_group(proc: subprocess.Popen) -> None:
+    """Stop child process (and its group on POSIX when start_new_session was used)."""
+    if proc.poll() is not None:
+        return
+    if os.name == "nt":
+        proc.terminate()
+    else:
+        try:
+            os.killpg(proc.pid, signal.SIGTERM)
+        except (ProcessLookupError, PermissionError):
+            proc.terminate()
+    try:
+        proc.wait(timeout=15)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait(timeout=5)
+
+
+def run_nmap_interruptible(argv: List[str]) -> None:
+    """
+    Run nmap in its own process group so Ctrl+C / Ctrl+Z (SIGTSTP on POSIX) can stop it
+    and return to the tools menu without exiting the checker.
+    """
+    hint_key = "tools_nmap_interrupt_hint_win" if os.name == "nt" else "tools_nmap_interrupt_hint"
+    print(f"{Colors.WARNING}{t(hint_key)}{Colors.ENDC}")
+    popen_kw: Dict = {}
+    if os.name == "nt":
+        popen_kw["creationflags"] = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+    else:
+        # Start a separate session to kill nmap cleanly on Ctrl+Z/Ctrl+C.
+        popen_kw["start_new_session"] = True
+    try:
+        proc = subprocess.Popen(argv, **popen_kw)
+    except FileNotFoundError:
+        print(f"{Colors.FAIL}{t('tools_cmd_missing')}{argv[0]}{Colors.ENDC}")
+        return
+    except OSError as exc:
+        print(f"{Colors.FAIL}{str(exc)}{Colors.ENDC}")
+        return
+
+    interrupted = False
+    old_tstp = None
+
+    def _on_sigtstp(_signum, _frame) -> None:
+        """POSIX: stop nmap group with SIGTERM (async-signal-safe primitives only)."""
+        nonlocal interrupted
+        interrupted = True
+        try:
+            os.killpg(proc.pid, signal.SIGTERM)
+        except (ProcessLookupError, PermissionError, AttributeError):
+            try:
+                os.kill(proc.pid, signal.SIGTERM)
+            except (ProcessLookupError, PermissionError):
+                pass
+
+    if os.name != "nt" and hasattr(signal, "SIGTSTP"):
+        old_tstp = signal.signal(signal.SIGTSTP, _on_sigtstp)
+
+    try:
+        while proc.poll() is None:
+            try:
+                time.sleep(0.2)
+            except KeyboardInterrupt:
+                interrupted = True
+                _terminate_process_group(proc)
+                break
+    finally:
+        if old_tstp is not None:
+            signal.signal(signal.SIGTSTP, old_tstp)
+
+    try:
+        proc.wait(timeout=1)
+    except subprocess.TimeoutExpired:
+        _terminate_process_group(proc)
+
+    if interrupted:
+        print(f"\n{Colors.OKCYAN}{t('tools_nmap_interrupted')}{Colors.ENDC}")
+
+
+def traceroute_cmd_to_google(is_windows: bool) -> List[str]:
+    """Limited hop count and wait so traceroute does not run unbounded."""
+    if is_windows:
+        # -h limits hops, -w limits per-hop wait in milliseconds.
+        return ["tracert", "-h", "20", "-w", "3000", "8.8.8.8"]
+    # -m max hops, -q one probe, -w per-probe timeout (seconds).
+    return ["traceroute", "-m", "20", "-q", "1", "-w", "3", "8.8.8.8"]
+
+
+def offer_network_tools_menu(target_ip: str) -> None:
+    """Optional nmap / traceroute / nslookup after a check (TTY only)."""
+    if not (sys.stdin.isatty() and sys.stdout.isatty()):
+        return
+    is_win = platform.system().lower().startswith("win")
+    while True:
+        print(f"\n{Colors.HEADER}{'-' * 60}{Colors.ENDC}")
+        print(f"{Colors.BOLD}{t('tools_menu_title')}: {target_ip}{Colors.ENDC}")
+        print(f"{Colors.OKCYAN}{t('tools_1')}{Colors.ENDC}")
+        print(f"{Colors.OKCYAN}{t('tools_2')}{Colors.ENDC}")
+        print(f"{Colors.OKCYAN}{t('tools_3')}{Colors.ENDC}")
+        print(f"{Colors.OKCYAN}{t('tools_0')}{Colors.ENDC}")
+        try:
+            choice = input(f"{Colors.WARNING}{t('tools_prompt')}{Colors.ENDC}").strip()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            break
+        if choice == "0":
+            break
+        if choice == "1":
+            if not shutil.which("nmap"):
+                print(f"{Colors.FAIL}{t('tools_cmd_missing')}nmap{Colors.ENDC}")
+                continue
+            cmd = ["nmap", "-A", "-T4", target_ip]
+            print(f"{Colors.OKCYAN}{t('tools_running')}{' '.join(cmd)}{Colors.ENDC}")
+            run_nmap_interruptible(cmd)
+            print(f"{Colors.OKGREEN}{t('tools_done')}{Colors.ENDC}")
+        elif choice == "2":
+            hop_cmd = traceroute_cmd_to_google(is_win)
+            if not shutil.which(hop_cmd[0]):
+                print(f"{Colors.FAIL}{t('tools_cmd_missing')}{hop_cmd[0]}{Colors.ENDC}")
+                continue
+            print(f"{Colors.OKCYAN}{t('tools_running')}{' '.join(hop_cmd)}{Colors.ENDC}")
+            run_external_tool(hop_cmd)
+            print(f"{Colors.OKGREEN}{t('tools_done')}{Colors.ENDC}")
+        elif choice == "3":
+            if not shutil.which("nslookup"):
+                print(f"{Colors.FAIL}{t('tools_cmd_missing')}nslookup{Colors.ENDC}")
+                continue
+            cmd = ["nslookup", target_ip]
+            print(f"{Colors.OKCYAN}{t('tools_running')}{' '.join(cmd)}{Colors.ENDC}")
+            run_external_tool(cmd)
+            print(f"{Colors.OKGREEN}{t('tools_done')}{Colors.ENDC}")
+        else:
+            print(f"{Colors.WARNING}{t('tools_invalid')}{Colors.ENDC}")
+
+def get_whois_data(ip: str, timeout_seconds: int = 20) -> Optional[Dict]:
     """Get WHOIS data for an IP address"""
     try:
-        timeout_seconds = 20
         process = subprocess.Popen(
             ['whois', ip],
             stdout=subprocess.PIPE,
@@ -452,7 +731,7 @@ def get_whois_data(ip: str) -> Optional[Dict]:
 
         return {'asn': asn, 'country': country, 'org': org, 'whois_text': whois_text}
     except subprocess.TimeoutExpired:
-        return {'error': 'timeout after 20s'}
+        return {'error': f'timeout after {timeout_seconds}s'}
     except FileNotFoundError:
         return {'error': 'whois command not found'}
     except OSError as exc:
@@ -569,8 +848,13 @@ def update_database_entry(database: Dict, ip: str, asn: str, country_code: str, 
         print(f"{Colors.FAIL}Error updating database: {e}{Colors.ENDC}")
         return False
 
-def check_single_ip(ip: str, database: Dict, auto_reclass: bool = False) -> Dict:
-    """Check a single IP address"""
+def check_single_ip(
+    ip: str,
+    database: Dict,
+    auto_reclass: bool = False,
+    interactive_extras: bool = True,
+) -> Dict:
+    """Check a single IP address. When ``interactive_extras`` is True, show abuse (WHOIS) and optional tool menu."""
     print(f"\n{Colors.OKCYAN}{t('checking')}{ip}{Colors.ENDC}")
     
     try:
@@ -595,7 +879,8 @@ def check_single_ip(ip: str, database: Dict, auto_reclass: bool = False) -> Dict
         'asn': geo_data['asn'],
         'geo_data': geo_data,
         'matches': [],
-        'mismatches': []
+        'mismatches': [],
+        '_abuse_shown': False,
     }
     
     best_matches = get_best_pool_match(ip, database)
@@ -623,6 +908,9 @@ def check_single_ip(ip: str, database: Dict, auto_reclass: bool = False) -> Dict
             print(f"  {t('asn')} {asn_entry['asn']}")
             print(f"  {t('pool')} {pool}")
             print(f"  {t('provider_owner')} {asn_entry['owner']}")
+            if interactive_extras:
+                fetch_and_print_abuse_contact(ip)
+                result['_abuse_shown'] = True
         else:
             result['mismatches'].append({
                 **match_info,
@@ -634,6 +922,9 @@ def check_single_ip(ip: str, database: Dict, auto_reclass: bool = False) -> Dict
             print(f"  {t('asn')} {asn_entry['asn']}")
             print(f"  {t('pool')} {pool}")
             print(f"  {t('provider_owner')} {asn_entry['owner']}")
+            if interactive_extras:
+                fetch_and_print_abuse_contact(ip)
+                result['_abuse_shown'] = True
 
             print(f"\n{Colors.WARNING}{t('offer_reclassify')}{Colors.ENDC}", end="")
 
@@ -670,13 +961,24 @@ def check_single_ip(ip: str, database: Dict, auto_reclass: bool = False) -> Dict
             print(f"{Colors.WARNING}{t('unknown_ip_invalid_yes_no')}{Colors.ENDC}")
         
         if verify_choice == 'y':
-            handle_unknown_ip(ip, result, database)
+            handle_unknown_ip(ip, result, database, interactive_extras=interactive_extras)
     if best_matches:
         result['status'] = 'checked'
-    
+
+    if geo_data.get('success') and interactive_extras:
+        if not result.get('_abuse_shown'):
+            fetch_and_print_abuse_contact(ip)
+            result['_abuse_shown'] = True
+        offer_network_tools_menu(ip)
+
     return result
 
-def handle_unknown_ip(ip: str, result: Dict, database: Dict) -> None:
+def handle_unknown_ip(
+    ip: str,
+    result: Dict,
+    database: Dict,
+    interactive_extras: bool = True,
+) -> None:
     """Handle IP not found in database - check WHOIS and offer to add"""
     print(f"\n{Colors.OKCYAN}{t('unknown_ip_whois')}{Colors.ENDC}")
     
@@ -714,7 +1016,10 @@ def handle_unknown_ip(ip: str, result: Dict, database: Dict) -> None:
     print(f"{Colors.OKCYAN}{t('unknown_ip_detected_country')}{Colors.ENDC}{detected_country} ({detected_country_name})")
     print(f"{Colors.OKCYAN}Pool: {Colors.ENDC}{pool}")
     print(f"{Colors.OKCYAN}IP: {Colors.ENDC}{ip}")
-    
+    if interactive_extras and whois_data.get("whois_text"):
+        print_abuse_line_from_whois_text(whois_data["whois_text"])
+        result["_abuse_shown"] = True
+
     # Ask if user wants to add to database
     print(f"\n{Colors.WARNING}{t('unknown_ip_add_offer')}{Colors.ENDC}", end="")
     try:
@@ -806,7 +1111,7 @@ def reclassify_asn(result: Dict, database: Dict, auto_confirm: bool = False) -> 
             
             print(f"\n{Colors.OKCYAN}{t('step3')}...{Colors.ENDC}")
             database = load_database()
-            recheck_result = check_single_ip(ip, database)
+            recheck_result = check_single_ip(ip, database, interactive_extras=False)
             
             print(f"\n{Colors.OKCYAN}{t('step4')}{Colors.ENDC}")
             if recheck_result.get('matches'):
@@ -847,7 +1152,9 @@ def check_ip_range(start: str, end: str, database: Dict, max_ips: int = 256, aut
     max_ips = max(1, max_ips)
 
     while current <= end_ip and count < max_ips:
-        result = check_single_ip(str(current), database, auto_reclass=auto_reclass)
+        result = check_single_ip(
+            str(current), database, auto_reclass=auto_reclass, interactive_extras=False
+        )
         results.append(result)
         current += 1
         count += 1
@@ -871,7 +1178,12 @@ def check_asn_operator(asn_input: str, database: Dict, auto_reclass: bool = Fals
     for pool in asn_data['ip_pools'][:max(1, max_ips)]:
         try:
             network = ipaddress.ip_network(pool, strict=False)
-            result = check_single_ip(str(network.network_address), database, auto_reclass=auto_reclass)
+            result = check_single_ip(
+                str(network.network_address),
+                database,
+                auto_reclass=auto_reclass,
+                interactive_extras=False,
+            )
             results.append(result)
         except ValueError:
             continue
@@ -882,10 +1194,18 @@ def run_cli_mode(args):
     """Run command-line mode when direct arguments are provided."""
     database = load_database()
     maybe_prompt_database_update(database)
+    tty = sys.stdin.isatty() and sys.stdout.isatty()
 
     def execute():
         if args.ip:
-            return [check_single_ip(args.ip, database, auto_reclass=args.auto_reclass)]
+            return [
+                check_single_ip(
+                    args.ip,
+                    database,
+                    auto_reclass=args.auto_reclass,
+                    interactive_extras=tty,
+                )
+            ]
         if args.ip_range:
             return check_ip_range(
                 args.ip_range[0],
@@ -928,6 +1248,8 @@ def main():
     # If first time (no language set), show language menu
     if CURRENT_LANGUAGE is None:
         select_language_menu()
+
+    print_startup_connection_banner()
 
     if args.ip or args.ip_range or args.asn:
         run_cli_mode(args)
@@ -1008,7 +1330,9 @@ def main():
                         
                         while current <= end_ip and count < max_ips:
                             database = load_database()
-                            result = check_single_ip(str(current), database)
+                            result = check_single_ip(
+                                str(current), database, interactive_extras=False
+                            )
                             results.append(result)
                             current += 1
                             count += 1
@@ -1045,7 +1369,11 @@ def main():
                         for pool in asn_data['ip_pools'][:3]:
                             try:
                                 network = ipaddress.ip_network(pool)
-                                result = check_single_ip(str(network.network_address), database)
+                                result = check_single_ip(
+                                    str(network.network_address),
+                                    database,
+                                    interactive_extras=False,
+                                )
                                 results.append(result)
                             except:
                                 pass
