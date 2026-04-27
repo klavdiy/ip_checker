@@ -899,6 +899,21 @@
     "total_asns": 46,
     "total_ip_pools": 139,
     "last_update_check": "2026-04-23",
-    "next_update_prompt_after": "2026-04-23"
+    "next_update_prompt_after": "2026-04-23",
+    "quarantine_cases": [
+      {
+        "timestamp": "2026-04-27T10:28:10",
+        "ip": "196.56.34.123",
+        "asn": "AS39798",
+        "pool": "196.0.0.0/8",
+        "expected_country": "RU",
+        "ip_api_country": "DZ",
+        "whois_country": "ZA",
+        "whois_rir": "AFRINIC",
+        "reason": "ip-api differs from expected; whois differs from expected; whois and ip-api conflict; whois RIR detected: AFRINIC",
+        "confidence_score": 15,
+        "status": "open"
+      }
+    ]
   }
 }

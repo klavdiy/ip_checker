@@ -41,6 +41,8 @@ class Colors:
     OKGREEN = '\033[92m'
     WARNING = '\033[93m'
     FAIL = '\033[91m'
+    WHITE = '\033[97m'
+    BGRED = '\033[41m'
     ENDC = '\033[0m'
     BOLD = '\033[1m'
     UNDERLINE = '\033[4m'
@@ -97,6 +99,7 @@ TRANSLATIONS = {
         "invalid_ip": "Invalid IP address: ",
         "unknown_ip_title": "Unknown IP Address",
         "unknown_ip_check_offer": "Would you like to verify this IP via WHOIS and add to database? (y/n): ",
+        "unknown_ip_no_local_data": "No local data found, requesting WHOIS...",
         "unknown_ip_invalid_yes_no": "Invalid input. Please enter only y or n.",
         "unknown_ip_whois": "Checking WHOIS data...",
         "unknown_ip_detected_asn": "Detected ASN: ",
@@ -119,6 +122,10 @@ TRANSLATIONS = {
         "db_update_started": "Updating database...",
         "db_update_postpone": "Update reminder postponed for 7 days.",
         "db_update_invalid_yes_no": "Invalid input. Please enter only y or n.",
+        "save_report_offer": "Save this report to scan_results.json? (y/n): ",
+        "save_report_yes": "Report saved: ",
+        "save_report_no": "Report not saved.",
+        "save_report_failed": "Failed to save report.",
         "startup_public_ip": "Public IP: ",
         "startup_location": "Location: ",
         "startup_isp": "ISP: ",
@@ -127,6 +134,13 @@ TRANSLATIONS = {
         "abuse_contact": "Abuse / complaints: ",
         "abuse_not_found": "(not found in WHOIS — check RIR WHOIS for this prefix)",
         "abuse_whois_lookup": "Looking up abuse contact (WHOIS)...",
+        "abuse_rir_fallback_lookup": "Abuse not found in primary WHOIS. Querying RIR WHOIS: ",
+        "abuse_rir_fallback_done": "RIR WHOIS query completed: ",
+        "abuse_contact_inferred": "Abuse / complaints (inferred from WHOIS emails): ",
+        "auth_check_title": "Authenticity check: ",
+        "auth_check_ok": "no obvious conflict signals",
+        "auth_check_warn_geo_whois": "geo country and WHOIS country differ",
+        "auth_check_warn_rir_geo": "WHOIS RIR region differs from geo country region",
         "tools_menu_title": "Additional network tools (checked IP)",
         "tools_1": "1. nmap (run with -A -T4)",
         "tools_2": "2. traceroute / tracert to 8.8.8.8 (max 20 hops, bounded wait)",
@@ -189,6 +203,7 @@ TRANSLATIONS = {
         "failed_geo": "✗ Ошибка получения данных геолокации: ",
         "invalid_ip": "Неверный IP адрес: ",
         "unknown_ip_check_offer": "Хотите проверить этот IP через WHOIS и добавить в БД? (y/n): ",
+        "unknown_ip_no_local_data": "Локальных данных нет, запрашиваю WHOIS...",
         "unknown_ip_invalid_yes_no": "Неверный ввод. Введите только y или n.",
         "unknown_ip_whois": "Проверка данных WHOIS...",
         "unknown_ip_detected_asn": "Обнаруженный ASN: ",
@@ -211,6 +226,10 @@ TRANSLATIONS = {
         "db_update_started": "Обновление базы...",
         "db_update_postpone": "Напоминание об обновлении отложено на 7 дней.",
         "db_update_invalid_yes_no": "Неверный ввод. Введите только y или n.",
+        "save_report_offer": "Сохранить отчет в scan_results.json? (y/n): ",
+        "save_report_yes": "Отчет сохранен: ",
+        "save_report_no": "Отчет не сохранен.",
+        "save_report_failed": "Не удалось сохранить отчет.",
         "startup_public_ip": "Публичный IP: ",
         "startup_location": "Локация: ",
         "startup_isp": "Провайдер: ",
@@ -219,6 +238,13 @@ TRANSLATIONS = {
         "abuse_contact": "Abuse / жалобы: ",
         "abuse_not_found": "(не найдено в WHOIS — смотрите WHOIS RIR для этого префикса)",
         "abuse_whois_lookup": "Поиск abuse-контакта (WHOIS)...",
+        "abuse_rir_fallback_lookup": "В основном WHOIS abuse не найден. Запрашиваю WHOIS RIR: ",
+        "abuse_rir_fallback_done": "Запрос WHOIS RIR выполнен: ",
+        "abuse_contact_inferred": "Abuse / жалобы (эвристика по email из WHOIS): ",
+        "auth_check_title": "Проверка подлинности: ",
+        "auth_check_ok": "явных конфликтов не обнаружено",
+        "auth_check_warn_geo_whois": "страна geo и страна WHOIS отличаются",
+        "auth_check_warn_rir_geo": "регион WHOIS RIR отличается от региона geo-страны",
         "tools_menu_title": "Доп. сетевые инструменты (проверяемый IP)",
         "tools_1": "1. nmap (запуск с ключами -A -T4)",
         "tools_2": "2. traceroute / tracert до 8.8.8.8 (макс. 20 хопов, ограниченное ожидание)",
@@ -362,6 +388,48 @@ def infer_rir_priority_for_ip(ip: str) -> Dict:
     if ip_obj.version == 6:
         return {"preferred_source": "WHOIS", "weight_whois": 0.65, "weight_geo": 0.35}
     return {"preferred_source": "GEO_API", "weight_whois": 0.4, "weight_geo": 0.6}
+
+def default_whois_server_for_rir(rir: Optional[str]) -> Optional[str]:
+    """Return canonical WHOIS hostname for known RIR labels."""
+    mapping = {
+        "RIPE": "whois.ripe.net",
+        "ARIN": "whois.arin.net",
+        "APNIC": "whois.apnic.net",
+        "LACNIC": "whois.lacnic.net",
+        "AFRINIC": "whois.afrinic.net",
+    }
+    if not rir:
+        return None
+    return mapping.get(str(rir).upper())
+
+def country_in_rir_region(country_code: Optional[str], rir: Optional[str]) -> bool:
+    """
+    Coarse consistency check between geo country and RIR region.
+    This is heuristic only; global providers can legitimately differ.
+    """
+    cc = normalize_country_code(country_code)
+    r = (rir or "").upper()
+    if not cc or not r:
+        return True
+
+    arin = {"US", "CA", "PR", "BM", "GL"}
+    lacnic = {"MX", "BR", "AR", "CL", "CO", "PE", "UY", "PY", "BO", "EC", "VE", "PA", "CR", "GT", "HN", "NI", "SV", "DO", "CU", "JM", "TT", "BS", "BB"}
+    afrinic = {"ZA", "NG", "KE", "EG", "MA", "DZ", "TN", "GH", "TZ", "UG", "CM", "SN", "CI", "ET", "ZM", "ZW", "BW", "NA", "MZ", "RW", "MU"}
+    apnic = {"CN", "JP", "KR", "SG", "IN", "AU", "NZ", "HK", "TW", "TH", "VN", "MY", "PH", "ID", "PK", "BD", "LK", "NP"}
+    # RIPE region is broad (Europe, Middle East, parts of Central Asia).
+    ripe = {"IT", "DE", "FR", "ES", "NL", "BE", "CH", "AT", "SE", "NO", "FI", "DK", "PL", "CZ", "SK", "HU", "RO", "BG", "GR", "PT", "IE", "GB", "UA", "BY", "RU", "TR", "IL", "AE", "SA", "KZ", "AM", "GE"}
+
+    if r == "ARIN":
+        return cc in arin
+    if r == "LACNIC":
+        return cc in lacnic
+    if r == "AFRINIC":
+        return cc in afrinic
+    if r == "APNIC":
+        return cc in apnic
+    if r == "RIPE":
+        return cc in ripe
+    return True
 
 def append_quarantine_case(
     database: Dict,
@@ -614,6 +682,35 @@ _ABUSE_LINE_PATTERNS = [
     re.compile(r"^\s*% abuse contact for .+?:\s*(.+)$", re.IGNORECASE | re.MULTILINE),
 ]
 
+_EMAIL_RE = re.compile(r"\b[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}\b", re.IGNORECASE)
+
+def extract_candidate_abuse_emails(whois_text: str) -> List[str]:
+    """Extract likely abuse/security contacts from WHOIS text as fallback."""
+    if not whois_text:
+        return []
+    scored: List[tuple[int, str]] = []
+    seen = set()
+    for line in whois_text.splitlines():
+        emails = _EMAIL_RE.findall(line)
+        if not emails:
+            continue
+        l = line.lower()
+        score = 0
+        if "abuse" in l:
+            score += 100
+        if "security" in l or "incident" in l or "cert" in l:
+            score += 60
+        if "noc" in l or "admin" in l:
+            score += 30
+        for e in emails:
+            key = e.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            scored.append((score, e))
+    scored.sort(key=lambda x: (-x[0], x[1]))
+    return [e for _, e in scored[:3]]
+
 def parse_abuse_from_whois(whois_text: str) -> Optional[str]:
     """Best-effort abuse contact from WHOIS text."""
     if not whois_text:
@@ -635,17 +732,51 @@ def print_abuse_line_from_whois_text(whois_text: str) -> None:
     else:
         print(f"{Colors.OKCYAN}{t('abuse_contact')}{Colors.ENDC}{t('abuse_not_found')}")
 
+def print_abuse_with_rir_fallback(ip: str, whois_data: Optional[Dict], whois_timeout: int = 14) -> None:
+    """Print abuse contact from current WHOIS data, fallback to explicit RIR WHOIS query."""
+    w = whois_data or {}
+    all_whois_texts: List[str] = []
+    if w.get("whois_text"):
+        all_whois_texts.append(w.get("whois_text", ""))
+    abuse = parse_abuse_from_whois(w.get("whois_text", ""))
+    if abuse:
+        print(f"{Colors.OKCYAN}{t('abuse_contact')}{Colors.ENDC}{abuse}")
+        return
+
+    fallback_server = default_whois_server_for_rir(w.get("rir"))
+    if fallback_server:
+        print(f"{Colors.WARNING}{t('abuse_rir_fallback_lookup')}{fallback_server}{Colors.ENDC}")
+        wr = get_whois_data(ip, timeout_seconds=max(8, whois_timeout), whois_server=fallback_server)
+        print(f"{Colors.OKCYAN}{t('abuse_rir_fallback_done')}{fallback_server}{Colors.ENDC}")
+        if wr and wr.get("whois_text"):
+            all_whois_texts.append(wr.get("whois_text", ""))
+            abuse_rir = parse_abuse_from_whois(wr.get("whois_text", ""))
+            if abuse_rir:
+                print(f"{Colors.OKCYAN}{t('abuse_contact')}{Colors.ENDC}{abuse_rir}")
+                return
+
+    # Final fallback: infer likely abuse/security contact emails from WHOIS content.
+    candidates: List[str] = []
+    for text in all_whois_texts:
+        for email in extract_candidate_abuse_emails(text):
+            if email not in candidates:
+                candidates.append(email)
+    if candidates:
+        print(f"{Colors.OKCYAN}{t('abuse_contact_inferred')}{Colors.ENDC}{' | '.join(candidates[:3])}")
+        return
+
+    print(f"{Colors.OKCYAN}{t('abuse_contact')}{Colors.ENDC}{t('abuse_not_found')}")
+
 def fetch_and_print_abuse_contact(ip: str, whois_timeout: int = 14) -> None:
-    """WHOIS lookup and print abuse line (may be slow)."""
+    """WHOIS lookup and print abuse line (with RIR fallback if primary WHOIS has no abuse)."""
     if sys.stdout.isatty():
         print(f"{Colors.WARNING}{t('abuse_whois_lookup')}{Colors.ENDC}")
     w = get_whois_data(ip, timeout_seconds=whois_timeout)
-    if w and w.get("whois_text"):
-        print_abuse_line_from_whois_text(w["whois_text"])
-    elif w and w.get("error"):
-        print(f"{Colors.OKCYAN}{t('abuse_contact')}{Colors.ENDC}{t('abuse_not_found')} ({w['error']})")
-    else:
-        print(f"{Colors.OKCYAN}{t('abuse_contact')}{Colors.ENDC}{t('abuse_not_found')}")
+    if not w or w.get("error"):
+        suffix = f" ({w['error']})" if w and w.get("error") else ""
+        print(f"{Colors.OKCYAN}{t('abuse_contact')}{Colors.ENDC}{t('abuse_not_found')}{suffix}")
+        return
+    print_abuse_with_rir_fallback(ip, w, whois_timeout=whois_timeout)
 
 def run_external_tool(argv: List[str]) -> None:
     """Run a command with inherited stdio."""
@@ -791,11 +922,14 @@ def offer_network_tools_menu(target_ip: str) -> None:
         else:
             print(f"{Colors.WARNING}{t('tools_invalid')}{Colors.ENDC}")
 
-def get_whois_data(ip: str, timeout_seconds: int = 20) -> Optional[Dict]:
+def get_whois_data(ip: str, timeout_seconds: int = 20, whois_server: Optional[str] = None) -> Optional[Dict]:
     """Get WHOIS data for an IP address"""
     try:
+        cmd = ['whois', ip]
+        if whois_server:
+            cmd = ['whois', '-h', whois_server, ip]
         process = subprocess.Popen(
-            ['whois', ip],
+            cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True
@@ -830,7 +964,7 @@ def get_whois_data(ip: str, timeout_seconds: int = 20) -> Optional[Dict]:
             print("\r" + " " * 60 + "\r", end="", flush=True)
 
         result = subprocess.CompletedProcess(
-            args=['whois', ip],
+            args=cmd,
             returncode=process.returncode,
             stdout=stdout,
             stderr=stderr
@@ -840,7 +974,7 @@ def get_whois_data(ip: str, timeout_seconds: int = 20) -> Optional[Dict]:
         asn = None
         country = None
         org = None
-        whois_server = None
+        referred_server = None
         
         asn_patterns = [
             re.compile(r'\bAS(\d{1,10})\b', re.IGNORECASE),
@@ -867,23 +1001,24 @@ def get_whois_data(ip: str, timeout_seconds: int = 20) -> Optional[Dict]:
                 parts = line.split(':')
                 if len(parts) > 1:
                     org = parts[-1].strip()
-            if whois_server is None and ('refer:' in line_lower or 'whois:' in line_lower):
+            if referred_server is None and ('refer:' in line_lower or 'whois:' in line_lower):
                 parts = line.split(':', 1)
                 if len(parts) > 1:
                     candidate = parts[1].strip()
                     if candidate:
-                        whois_server = candidate
+                        referred_server = candidate
         
         if not whois_text.strip():
             return {'error': 'empty whois response'}
 
-        rir = infer_rir_from_whois_server(whois_server)
+        inferred_server = whois_server or referred_server
+        rir = infer_rir_from_whois_server(inferred_server)
         return {
             'asn': asn,
             'country': country,
             'org': org,
             'whois_text': whois_text,
-            'whois_server': whois_server,
+            'whois_server': inferred_server,
             'rir': rir,
         }
     except subprocess.TimeoutExpired:
@@ -894,6 +1029,30 @@ def get_whois_data(ip: str, timeout_seconds: int = 20) -> Optional[Dict]:
         return {'error': str(exc)}
     except Exception as exc:
         return {'error': str(exc)}
+
+def assess_data_authenticity(
+    geo_country: Optional[str],
+    whois_country: Optional[str],
+    whois_rir: Optional[str],
+) -> Dict:
+    """Heuristic authenticity signal based on geo vs WHOIS country and RIR region."""
+    geo = normalize_country_code(geo_country)
+    whois = normalize_country_code(whois_country)
+    rir = (whois_rir or "").upper() or None
+    warnings: List[str] = []
+
+    if geo and whois and geo != whois:
+        warnings.append(t("auth_check_warn_geo_whois"))
+    if geo and rir and not country_in_rir_region(geo, rir):
+        warnings.append(t("auth_check_warn_rir_geo"))
+
+    return {
+        "ok": len(warnings) == 0,
+        "warnings": warnings,
+        "geo_country": geo,
+        "whois_country": whois,
+        "whois_rir": rir,
+    }
 
 def parse_cli_args():
     """Parse command-line arguments for non-interactive mode."""
@@ -1100,24 +1259,10 @@ def check_single_ip(
     else:
         print(f"{Colors.WARNING}{t('ip_not_found')}{Colors.ENDC}")
         result['status'] = 'not_in_database'
-        
-        # Ask user if they want to verify and add unknown IP
-        verify_choice = 'n'
-        while True:
-            print(f"\n{Colors.OKCYAN}{t('unknown_ip_check_offer')}{Colors.ENDC}", end="")
-            try:
-                verify_choice = input().strip().lower()
-            except (EOFError, KeyboardInterrupt):
-                verify_choice = 'n'
-                break
 
-            if verify_choice in ('y', 'n'):
-                break
-
-            print(f"{Colors.WARNING}{t('unknown_ip_invalid_yes_no')}{Colors.ENDC}")
-        
-        if verify_choice == 'y':
-            handle_unknown_ip(ip, result, database, interactive_extras=interactive_extras)
+        # If IP is not in local pools, immediately run WHOIS report flow.
+        print(f"{Colors.OKCYAN}{t('unknown_ip_no_local_data')}{Colors.ENDC}")
+        handle_unknown_ip(ip, result, database, interactive_extras=interactive_extras)
     if best_matches:
         result['status'] = 'checked'
 
@@ -1173,8 +1318,20 @@ def handle_unknown_ip(
     print(f"{Colors.OKCYAN}Pool: {Colors.ENDC}{pool}")
     print(f"{Colors.OKCYAN}IP: {Colors.ENDC}{ip}")
     if interactive_extras and whois_data.get("whois_text"):
-        print_abuse_line_from_whois_text(whois_data["whois_text"])
+        print_abuse_with_rir_fallback(ip, whois_data, whois_timeout=12)
         result["_abuse_shown"] = True
+
+    auth = assess_data_authenticity(
+        geo_country=result.get("actual_country"),
+        whois_country=whois_data.get("country"),
+        whois_rir=whois_data.get("rir"),
+    )
+    if auth["ok"]:
+        print(f"{Colors.OKGREEN}{t('auth_check_title')}{t('auth_check_ok')}{Colors.ENDC}")
+    else:
+        warn_text = f"{t('auth_check_title')}{'; '.join(auth['warnings'])}"
+        # High-visibility warning: white text over red background.
+        print(f"{Colors.WHITE}{Colors.BGRED}{warn_text}{Colors.ENDC}")
 
     # Ask if user wants to add to database
     print(f"\n{Colors.WARNING}{t('unknown_ip_add_offer')}{Colors.ENDC}", end="")
@@ -1454,22 +1611,22 @@ def main():
         print(f"{Colors.HEADER}{Colors.BOLD}{'='*60}{Colors.ENDC}\n")
         
         if CURRENT_LANGUAGE == "ru":
-            print("1. ✓ Проверить IP адрес")
-            print("2. 📊 Проверить диапазон IP")
-            print("3. 🏢 Проверить ASN оператора")
-            print("4. 🌍 Выбрать язык")
-            print("5. ℹ️  Справка")
-            print("6. 🔄 Обновить базу")
-            print("0. ❌ Выход")
+            print("1. Проверить IP адрес")
+            print("2. Проверить диапазон IP")
+            print("3. Проверить ASN оператора")
+            print("4. Выбрать язык")
+            print("5. Справка")
+            print("6. Обновить базу")
+            print("0. Выход")
             prompt_text = "Выберите опцию (0-6): "
         else:
-            print("1. ✓ Check single IP address")
-            print("2. 📊 Check IP range")
-            print("3. 🏢 Check ASN operator")
-            print("4. 🌍 Change language")
-            print("5. ℹ️  Help")
-            print("6. 🔄 Update database")
-            print("0. ❌ Exit")
+            print("1. Check single IP address")
+            print("2. Check IP range")
+            print("3. Check ASN operator")
+            print("4. Change language")
+            print("5. Help")
+            print("6. Update database")
+            print("0. Exit")
             prompt_text = "Select option (0-6): "
         
         try:
@@ -1494,8 +1651,9 @@ def main():
                 if ip_input:
                     database = load_database()
                     result = check_single_ip(ip_input, database, auto_reclass=False)
-                    if result.get('matches') or result.get('mismatches'):
+                    if not result.get('error'):
                         show_summary([result])
+                        offer_save_report([result])
             except KeyboardInterrupt:
                 continue
         
@@ -1529,6 +1687,7 @@ def main():
                         
                         if results:
                             show_summary(results)
+                            offer_save_report(results)
                     except ValueError:
                         if CURRENT_LANGUAGE == "ru":
                             print(f"{Colors.FAIL}❌ Неверный IP адрес{Colors.ENDC}")
@@ -1570,6 +1729,7 @@ def main():
                         
                         if results:
                             show_summary(results)
+                            offer_save_report(results)
                     else:
                         if CURRENT_LANGUAGE == "ru":
                             print(f"{Colors.FAIL}❌ ASN не найден{Colors.ENDC}")
@@ -1615,6 +1775,31 @@ def show_summary(results: List[Dict]):
         print(f"{Colors.FAIL}{t('mismatch_count')} {mismatches}{Colors.ENDC}")
     else:
         print(f"{Colors.OKGREEN}{t('mismatch_count')} 0{Colors.ENDC}")
+
+def offer_save_report(results: List[Dict]) -> None:
+    """Offer to persist current report to scan_results.json in interactive mode."""
+    if not (sys.stdin.isatty() and sys.stdout.isatty()):
+        return
+
+    while True:
+        print(f"\n{Colors.WARNING}{t('save_report_offer')}{Colors.ENDC}", end="")
+        try:
+            choice = input().strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            return
+
+        if choice in ("y", "n"):
+            break
+        print(f"{Colors.WARNING}{t('unknown_ip_invalid_yes_no')}{Colors.ENDC}")
+
+    if choice == "y":
+        if save_results(results):
+            print(f"{Colors.OKGREEN}{t('save_report_yes')}{RESULTS_FILE}{Colors.ENDC}")
+        else:
+            print(f"{Colors.FAIL}{t('save_report_failed')}{Colors.ENDC}")
+    else:
+        print(f"{Colors.OKCYAN}{t('save_report_no')}{Colors.ENDC}")
 
 def show_help():
     """Show help menu"""
