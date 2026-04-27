@@ -69,7 +69,7 @@ TRANSLATIONS = {
         "pool": "Pool: ",
         "provider_owner": "Provider: ",
         "ip_not_found": "⚠ IP not found in any ASN pool",
-        "offer_reclassify": "⚠ MISMATCH FOUND!\nWould you like to reclassify this ASN? (y/n): ",
+        "offer_reclassify": "MISMATCH FOUND!\nWould you like to reclassify this ASN? (y/n): ",
         "reclassification": "MISMATCH RECLASSIFICATION PROCESS",
         "ip_addr": "IP Address: ",
         "current_provider": "Current Provider: ",
@@ -98,6 +98,8 @@ TRANSLATIONS = {
         "mismatch_count": "Mismatches (location incorrect): ",
         "failed_geo": "✗ Failed to get geolocation data: ",
         "invalid_ip": "Invalid IP address: ",
+        "ip_input_hint": "Enter IPv4/IPv6 only (example: 8.8.8.8). Enter 0 to cancel.",
+        "ip_input_cancelled": "IP input cancelled. Returning to main menu.",
         "unknown_ip_title": "Unknown IP Address",
         "unknown_ip_check_offer": "Would you like to verify this IP via WHOIS and add to database? (y/n): ",
         "unknown_ip_no_local_data": "No local data found, requesting WHOIS...",
@@ -194,7 +196,7 @@ TRANSLATIONS = {
         "pool": "Пул: ",
         "provider_owner": "Провайдер: ",
         "ip_not_found": "⚠ IP не найден в пулах БД",
-        "offer_reclassify": "⚠ НАЙДЕНО НЕСООТВЕТСТВИЕ!\nХотите переклассифицировать этот ASN? (y/n): ",
+        "offer_reclassify": "НАЙДЕНО НЕСООТВЕТСТВИЕ!\nХотите переклассифицировать этот ASN? (y/n): ",
         "reclassification": "ПРОЦЕСС ПЕРЕКЛАССИФИКАЦИИ ASN",
         "ip_addr": "IP адрес: ",
         "current_provider": "Текущий провайдер: ",
@@ -223,6 +225,8 @@ TRANSLATIONS = {
         "mismatch_count": "Несоответствия (локация неверна): ",
         "failed_geo": "✗ Ошибка получения данных геолокации: ",
         "invalid_ip": "Неверный IP адрес: ",
+        "ip_input_hint": "Введите только IPv4/IPv6 (например: 8.8.8.8). Введите 0 для отмены.",
+        "ip_input_cancelled": "Ввод IP отменен. Возврат в главное меню.",
         "unknown_ip_check_offer": "Хотите проверить этот IP через WHOIS и добавить в БД? (y/n): ",
         "unknown_ip_no_local_data": "Локальных данных нет, запрашиваю WHOIS...",
         "unknown_ip_invalid_yes_no": "Неверный ввод. Введите только y или n.",
@@ -957,9 +961,9 @@ def extract_abuse_handle(whois_text: str) -> Optional[str]:
 def print_abuse_line_from_whois_text(whois_text: str) -> None:
     abuse = parse_abuse_from_whois(whois_text)
     if abuse:
-        print(f"{Colors.OKCYAN}{t('abuse_contact')}{Colors.ENDC}{abuse}")
+        print(f"  {t('abuse_contact')}{abuse}")
     else:
-        print(f"{Colors.OKCYAN}{t('abuse_contact')}{Colors.ENDC}{t('abuse_not_found')}")
+        print(f"  {t('abuse_contact')}{t('abuse_not_found')}")
 
 def print_abuse_with_rir_fallback(ip: str, whois_data: Optional[Dict], whois_timeout: int = 14) -> None:
     """Print abuse contact from current WHOIS data, fallback to explicit RIR WHOIS query."""
@@ -969,14 +973,14 @@ def print_abuse_with_rir_fallback(ip: str, whois_data: Optional[Dict], whois_tim
         all_whois_texts.append(w.get("whois_text", ""))
     abuse = parse_abuse_from_whois(w.get("whois_text", ""))
     if abuse:
-        print(f"{Colors.OKCYAN}{t('abuse_contact')}{Colors.ENDC}{abuse}")
+        print(f"  {t('abuse_contact')}{abuse}")
         return
 
     handle = extract_abuse_handle(w.get("whois_text", ""))
     if handle:
         resolved = resolve_abuse_handle_contact(handle, w.get("whois_server"), timeout_seconds=max(8, whois_timeout))
         if resolved:
-            print(f"{Colors.OKCYAN}{t('abuse_contact')}{Colors.ENDC}{' | '.join(resolved)}")
+            print(f"  {t('abuse_contact')}{' | '.join(resolved)}")
             return
 
     fallback_server = default_whois_server_for_rir(w.get("rir"))
@@ -988,13 +992,13 @@ def print_abuse_with_rir_fallback(ip: str, whois_data: Optional[Dict], whois_tim
             all_whois_texts.append(wr.get("whois_text", ""))
             abuse_rir = parse_abuse_from_whois(wr.get("whois_text", ""))
             if abuse_rir:
-                print(f"{Colors.OKCYAN}{t('abuse_contact')}{Colors.ENDC}{abuse_rir}")
+                print(f"  {t('abuse_contact')}{abuse_rir}")
                 return
             handle_rir = extract_abuse_handle(wr.get("whois_text", ""))
             if handle_rir:
                 resolved_rir = resolve_abuse_handle_contact(handle_rir, fallback_server, timeout_seconds=max(8, whois_timeout))
                 if resolved_rir:
-                    print(f"{Colors.OKCYAN}{t('abuse_contact')}{Colors.ENDC}{' | '.join(resolved_rir)}")
+                    print(f"  {t('abuse_contact')}{' | '.join(resolved_rir)}")
                     return
 
     # Final fallback: infer likely abuse/security contact emails from WHOIS content.
@@ -1004,19 +1008,17 @@ def print_abuse_with_rir_fallback(ip: str, whois_data: Optional[Dict], whois_tim
             if email not in candidates:
                 candidates.append(email)
     if candidates:
-        print(f"{Colors.OKCYAN}{t('abuse_contact_inferred')}{Colors.ENDC}{' | '.join(candidates[:3])}")
+        print(f"  {t('abuse_contact_inferred')}{' | '.join(candidates[:3])}")
         return
 
-    print(f"{Colors.OKCYAN}{t('abuse_contact')}{Colors.ENDC}{t('abuse_not_found')}")
+    print(f"  {t('abuse_contact')}{t('abuse_not_found')}")
 
 def fetch_and_print_abuse_contact(ip: str, whois_timeout: int = 14) -> None:
     """WHOIS lookup and print abuse line (with RIR fallback if primary WHOIS has no abuse)."""
-    if sys.stdout.isatty():
-        print(f"{Colors.WARNING}{t('abuse_whois_lookup')}{Colors.ENDC}")
     w = get_whois_data(ip, timeout_seconds=whois_timeout)
     if not w or w.get("error"):
         suffix = f" ({w['error']})" if w and w.get("error") else ""
-        print(f"{Colors.OKCYAN}{t('abuse_contact')}{Colors.ENDC}{t('abuse_not_found')}{suffix}")
+        print(f"  {t('abuse_contact')}{t('abuse_not_found')}{suffix}")
         return
     print_abuse_with_rir_fallback(ip, w, whois_timeout=whois_timeout)
 
@@ -1026,7 +1028,15 @@ def resolve_abuse_handle_contact(handle: str, whois_server: Optional[str], timeo
     if whois_server:
         cmd = ["whois", "-h", whois_server, handle]
     try:
-        r = subprocess.run(cmd, text=True, capture_output=True, timeout=timeout_seconds, check=False)
+        r = subprocess.run(
+            cmd,
+            text=True,
+            capture_output=True,
+            timeout=timeout_seconds,
+            check=False,
+            encoding="utf-8",
+            errors="replace",
+        )
     except Exception:
         return []
     text = r.stdout or ""
@@ -1193,7 +1203,9 @@ def get_whois_data(ip: str, timeout_seconds: int = 20, whois_server: Optional[st
             cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            text=True
+            text=True,
+            encoding="utf-8",
+            errors="replace",
         )
 
         show_timer = sys.stdout.isatty()
@@ -1440,6 +1452,18 @@ def update_database_entry(database: Dict, ip: str, asn: str, country_code: str, 
         print(f"{Colors.FAIL}Error updating database: {e}{Colors.ENDC}")
         return False
 
+def display_provider_name(db_owner: Optional[str], detected_org: Optional[str], detected_isp: Optional[str] = None) -> str:
+    """
+    Prefer a real provider/org name in output.
+    If DB owner is an auto-added placeholder, use detected org when available.
+    """
+    owner = (db_owner or "").strip()
+    detected = (detected_org or "").strip()
+    isp = (detected_isp or "").strip()
+    if owner.lower().startswith("auto-added from ip"):
+        return detected or isp or owner
+    return owner or detected or isp or "Unknown"
+
 def check_single_ip(
     ip: str,
     database: Dict,
@@ -1499,7 +1523,12 @@ def check_single_ip(
             print(f"  {t('expected_country')} {expected_country} | {t('actual_country')} {actual_country}")
             print(f"  {t('asn')} {asn_entry['asn']}")
             print(f"  {t('pool')} {pool}")
-            print(f"  {t('provider_owner')} {asn_entry['owner']}")
+            provider_name = display_provider_name(
+                asn_entry.get('owner'),
+                geo_data.get('org'),
+                geo_data.get('isp'),
+            )
+            print(f"  {t('provider_owner')} {provider_name}")
             if interactive_extras:
                 fetch_and_print_abuse_contact(ip)
                 result['_abuse_shown'] = True
@@ -1513,23 +1542,32 @@ def check_single_ip(
             print(f"  {t('expected_country')} {Colors.OKGREEN}{expected_country} ({asn_entry['expected_country_name']}){Colors.ENDC} | {t('actual_country')} {Colors.FAIL}{actual_country} ({geo_data['country']}){Colors.ENDC}")
             print(f"  {t('asn')} {asn_entry['asn']}")
             print(f"  {t('pool')} {pool}")
-            print(f"  {t('provider_owner')} {asn_entry['owner']}")
+            provider_name = display_provider_name(
+                asn_entry.get('owner'),
+                geo_data.get('org'),
+                geo_data.get('isp'),
+            )
+            print(f"  {t('provider_owner')} {provider_name}")
             if interactive_extras:
                 fetch_and_print_abuse_contact(ip)
                 result['_abuse_shown'] = True
 
             print(f"\n{Colors.WARNING}{t('offer_reclassify')}{Colors.ENDC}", end="")
 
-            try:
-                if auto_reclass:
-                    offer_reclass = 'y'
-                    print("y (auto)")
-                else:
-                    offer_reclass = input()
-            except (EOFError, KeyboardInterrupt):
-                offer_reclass = 'n'
+            while True:
+                try:
+                    if auto_reclass:
+                        offer_reclass = 'y'
+                        print("y (auto)")
+                    else:
+                        offer_reclass = input().strip().lower()
+                except (EOFError, KeyboardInterrupt):
+                    offer_reclass = 'n'
+                if offer_reclass in ('y', 'n'):
+                    break
+                print(f"{Colors.WARNING}{t('unknown_ip_invalid_yes_no')}{Colors.ENDC}")
 
-            if offer_reclass.lower() == 'y':
+            if offer_reclass == 'y':
                 reclassified = reclassify_asn(result, database, auto_confirm=auto_reclass)
                 result['mismatches'] = reclassified.get('mismatches', [])
                 result['matches'] = reclassified.get('matches', [])
@@ -1550,6 +1588,20 @@ def check_single_ip(
         offer_network_tools_menu(ip)
 
     return result
+
+def prompt_valid_ip_or_cancel() -> Optional[str]:
+    """Prompt until a valid IP is entered, or return None when user cancels with 0."""
+    while True:
+        ip_input = input(f"{Colors.OKCYAN}IP: {Colors.ENDC}").strip()
+        if ip_input == "0":
+            print(f"{Colors.OKCYAN}{t('ip_input_cancelled')}{Colors.ENDC}")
+            return None
+        try:
+            ipaddress.ip_address(ip_input)
+            return ip_input
+        except ValueError:
+            print(f"{Colors.WARNING}{t('invalid_ip')} {ip_input}{Colors.ENDC}")
+            print(f"{Colors.OKCYAN}{t('ip_input_hint')}{Colors.ENDC}")
 
 def handle_unknown_ip(
     ip: str,
@@ -1671,10 +1723,12 @@ def reclassify_asn(result: Dict, database: Dict, auto_confirm: bool = False) -> 
     whois_data = get_whois_data(ip)
     geo_data = result.get('geo_data', {})
     
-    if whois_data:
-        print(f"  ASN: {whois_data['asn'] or 'N/A'}")
-        print(f"  {t('actual_country')}: {whois_data['country'] or 'N/A'}")
-        print(f"  Org: {whois_data['org'] or 'N/A'}")
+    if whois_data and not whois_data.get("error"):
+        print(f"  ASN: {whois_data.get('asn') or 'N/A'}")
+        print(f"  {t('actual_country')}: {whois_data.get('country') or 'N/A'}")
+        print(f"  Org: {whois_data.get('org') or 'N/A'}")
+    elif whois_data and whois_data.get("error"):
+        print(f"  WHOIS: error ({whois_data.get('error')})")
     
     print(f"  Geo API Org: {geo_data.get('org', 'N/A')}")
     print(f"  Geo API {t('actual_country')}: {geo_data.get('country_code', 'N/A')}")
@@ -1929,13 +1983,14 @@ def main():
         elif choice == "1":
             # Check single IP
             try:
-                ip_input = input(f"{Colors.OKCYAN}IP: {Colors.ENDC}").strip()
-                if ip_input:
-                    database = load_database()
-                    result = check_single_ip(ip_input, database, auto_reclass=False)
-                    if not result.get('error'):
-                        show_summary([result])
-                        offer_save_report([result])
+                ip_input = prompt_valid_ip_or_cancel()
+                if not ip_input:
+                    continue
+                database = load_database()
+                result = check_single_ip(ip_input, database, auto_reclass=False)
+                if not result.get('error'):
+                    show_summary([result])
+                    offer_save_report([result])
             except KeyboardInterrupt:
                 continue
         

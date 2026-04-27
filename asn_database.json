@@ -451,18 +451,18 @@
     {
       "asn": "AS141039",
       "owner": "Auto-added from IP 185.65.50.104",
-      "country_code": "LT",
-      "country_name": "Lithuania",
+      "country_code": "IT",
+      "country_name": "Italy",
       "region": "Multi-Regional",
-      "expected_country": "LT",
-      "expected_country_name": "Lithuania",
+      "expected_country": "IT",
+      "expected_country_name": "Italy",
       "ip_pools": [
         "185.0.0.0/8"
       ],
       "check_status": "active",
-      "last_checked": "2026-04-26",
+      "last_checked": "2026-04-27",
       "verified": false,
-      "notes": "Auto-added entry for AS141039"
+      "notes": "Updated: IP geolocation verified as IT (Italy)"
     },
     {
       "asn": "AS15169",
@@ -895,12 +895,17 @@
         "name": "Netherlands",
         "operators_count": 1,
         "description": "Netherlands operators (IT reference)"
+      },
+      "IT": {
+        "name": "Italy",
+        "operators_count": 0,
+        "description": "Italy operators"
       }
     },
     "total_asns": 46,
     "total_ip_pools": 140,
-    "last_update_check": "2026-04-23",
-    "next_update_prompt_after": "2026-04-23",
+    "last_update_check": "2026-04-27",
+    "next_update_prompt_after": "2026-04-27",
     "quarantine_cases": [
       {
         "timestamp": "2026-04-27T10:28:10",
