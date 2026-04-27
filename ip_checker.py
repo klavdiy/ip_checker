@@ -324,6 +324,147 @@ def parse_iso_date(date_str: Optional[str]) -> Optional[datetime]:
     except ValueError:
         return None
 
+def normalize_country_code(value: Optional[str]) -> Optional[str]:
+    """Normalize any country-like token to two-letter uppercase code."""
+    if not value:
+        return None
+    token = str(value).strip().upper()
+    if len(token) >= 2:
+        return token[:2]
+    return None
+
+def infer_rir_from_whois_server(server: Optional[str]) -> Optional[str]:
+    """Infer RIR from WHOIS referral server hostname."""
+    if not server:
+        return None
+    s = server.lower()
+    if "ripe" in s:
+        return "RIPE"
+    if "arin" in s:
+        return "ARIN"
+    if "apnic" in s:
+        return "APNIC"
+    if "lacnic" in s:
+        return "LACNIC"
+    if "afrinic" in s:
+        return "AFRINIC"
+    return None
+
+def infer_rir_priority_for_ip(ip: str) -> Dict:
+    """
+    Best-effort prefix/RIR priority by address family.
+    IPv4 defaults to globally mixed trust. IPv6 relies more on RIR WHOIS.
+    """
+    try:
+        ip_obj = ipaddress.ip_address(ip)
+    except ValueError:
+        return {"preferred_source": "GEO_API", "weight_whois": 0.4, "weight_geo": 0.6}
+    if ip_obj.version == 6:
+        return {"preferred_source": "WHOIS", "weight_whois": 0.65, "weight_geo": 0.35}
+    return {"preferred_source": "GEO_API", "weight_whois": 0.4, "weight_geo": 0.6}
+
+def append_quarantine_case(
+    database: Dict,
+    *,
+    ip: str,
+    asn: str,
+    pool: str,
+    expected_country: str,
+    ip_api_country: Optional[str],
+    whois_country: Optional[str],
+    whois_rir: Optional[str],
+    reason: str,
+    confidence_score: int,
+) -> None:
+    """Store a conflict case for later manual triage."""
+    metadata = database.setdefault("metadata", {})
+    quarantine = metadata.setdefault("quarantine_cases", [])
+    quarantine.append(
+        {
+            "timestamp": datetime.now().isoformat(timespec="seconds"),
+            "ip": ip,
+            "asn": asn,
+            "pool": pool,
+            "expected_country": expected_country,
+            "ip_api_country": ip_api_country,
+            "whois_country": whois_country,
+            "whois_rir": whois_rir,
+            "reason": reason,
+            "confidence_score": confidence_score,
+            "status": "open",
+        }
+    )
+
+def resolve_country_conflict_policy(
+    *,
+    ip: str,
+    expected_country: str,
+    ip_api_country: Optional[str],
+    whois_country: Optional[str],
+    whois_rir: Optional[str],
+) -> Dict:
+    """
+    Resolve mismatch with confidence score and source weighting.
+    Returns action:
+      - auto_apply: safe to update expected country automatically
+      - quarantine: conflicting low-confidence case, do not auto-write
+      - keep_expected: no update should be done
+    """
+    expected = normalize_country_code(expected_country)
+    geo = normalize_country_code(ip_api_country)
+    whois = normalize_country_code(whois_country)
+    rir_pref = infer_rir_priority_for_ip(ip)
+
+    score = 0
+    reasons: List[str] = []
+
+    if geo and geo != expected:
+        score += int(30 * rir_pref["weight_geo"])
+        reasons.append("ip-api differs from expected")
+    if whois and whois != expected:
+        score += int(30 * rir_pref["weight_whois"])
+        reasons.append("whois differs from expected")
+    if geo and whois and geo == whois and geo != expected:
+        score += 40
+        reasons.append("whois and ip-api agree")
+    if geo and whois and geo != whois:
+        score -= 20
+        reasons.append("whois and ip-api conflict")
+    if whois_rir:
+        score += 5
+        reasons.append(f"whois RIR detected: {whois_rir}")
+
+    if score >= 55 and geo and whois and geo == whois:
+        return {
+            "action": "auto_apply",
+            "target_country": geo,
+            "confidence_score": score,
+            "reason": "; ".join(reasons),
+        }
+
+    if score >= 30 and geo and not whois:
+        return {
+            "action": "auto_apply",
+            "target_country": geo,
+            "confidence_score": score,
+            "reason": "; ".join(reasons + ["no whois country, using geo"]),
+        }
+
+    if geo and whois and geo != whois:
+        return {
+            "action": "quarantine",
+            "target_country": None,
+            "confidence_score": score,
+            "reason": "; ".join(reasons),
+        }
+
+    return {
+        "action": "keep_expected",
+        "target_country": expected,
+        "confidence_score": score,
+        "reason": "; ".join(reasons) if reasons else "no significant mismatch signals",
+    }
+
 def update_database_metadata(database: Dict) -> None:
     """Refresh metadata counters and timestamps."""
     metadata = database.setdefault('metadata', {})
@@ -699,6 +840,7 @@ def get_whois_data(ip: str, timeout_seconds: int = 20) -> Optional[Dict]:
         asn = None
         country = None
         org = None
+        whois_server = None
         
         asn_patterns = [
             re.compile(r'\bAS(\d{1,10})\b', re.IGNORECASE),
@@ -725,11 +867,25 @@ def get_whois_data(ip: str, timeout_seconds: int = 20) -> Optional[Dict]:
                 parts = line.split(':')
                 if len(parts) > 1:
                     org = parts[-1].strip()
+            if whois_server is None and ('refer:' in line_lower or 'whois:' in line_lower):
+                parts = line.split(':', 1)
+                if len(parts) > 1:
+                    candidate = parts[1].strip()
+                    if candidate:
+                        whois_server = candidate
         
         if not whois_text.strip():
             return {'error': 'empty whois response'}
 
-        return {'asn': asn, 'country': country, 'org': org, 'whois_text': whois_text}
+        rir = infer_rir_from_whois_server(whois_server)
+        return {
+            'asn': asn,
+            'country': country,
+            'org': org,
+            'whois_text': whois_text,
+            'whois_server': whois_server,
+            'rir': rir,
+        }
     except subprocess.TimeoutExpired:
         return {'error': f'timeout after {timeout_seconds}s'}
     except FileNotFoundError:
@@ -1085,11 +1241,44 @@ def reclassify_asn(result: Dict, database: Dict, auto_confirm: bool = False) -> 
     
     print(f"  Geo API Org: {geo_data.get('org', 'N/A')}")
     print(f"  Geo API {t('actual_country')}: {geo_data.get('country_code', 'N/A')}")
+
+    mismatch = result['mismatches'][0]
+    policy = resolve_country_conflict_policy(
+        ip=ip,
+        expected_country=mismatch.get('expected_country'),
+        ip_api_country=result.get('actual_country'),
+        whois_country=(whois_data or {}).get('country'),
+        whois_rir=(whois_data or {}).get('rir'),
+    )
+    print(f"  Policy: {policy['action']} (score={policy['confidence_score']})")
+    print(f"  Policy reason: {policy['reason']}")
+    if (whois_data or {}).get("rir"):
+        print(f"  WHOIS RIR: {(whois_data or {}).get('rir')}")
     
     print(f"\n{Colors.OKCYAN}{t('step2')}{Colors.ENDC}")
     print(f"{Colors.WARNING}{t('will_update')}:{Colors.ENDC}")
-    print(f"  {t('country')}: {result['mismatches'][0]['expected_country']}{t('from_to')}{result['actual_country']}")
-    print(f"  {t('provider')}: {result['mismatches'][0]['owner']}{t('from_to')}{result.get('org', 'Unknown')}")
+    print(f"  {t('country')}: {mismatch['expected_country']}{t('from_to')}{result['actual_country']}")
+    print(f"  {t('provider')}: {mismatch['owner']}{t('from_to')}{result.get('org', 'Unknown')}")
+
+    if policy["action"] == "quarantine":
+        append_quarantine_case(
+            database,
+            ip=ip,
+            asn=mismatch.get("asn"),
+            pool=mismatch.get("pool"),
+            expected_country=mismatch.get("expected_country"),
+            ip_api_country=result.get("actual_country"),
+            whois_country=(whois_data or {}).get("country"),
+            whois_rir=(whois_data or {}).get("rir"),
+            reason=policy["reason"],
+            confidence_score=policy["confidence_score"],
+        )
+        save_database(database)
+        print(f"{Colors.WARNING}⚠ Conflict quarantined: WHOIS and ip-api disagree. No DB write performed.{Colors.ENDC}")
+        return result
+    if policy["action"] == "keep_expected":
+        print(f"{Colors.OKCYAN}Policy decision: keep expected country. Database remains unchanged.{Colors.ENDC}")
+        return result
     
     try:
         if auto_confirm:
@@ -1101,12 +1290,13 @@ def reclassify_asn(result: Dict, database: Dict, auto_confirm: bool = False) -> 
         confirm = 'y' if auto_confirm else 'n'
     
     if confirm.lower() == 'y':
-        mismatch = result['mismatches'][0]
         pool = mismatch['pool']
         org_name = result.get('org')
+        target_country = policy.get("target_country") or result['actual_country']
+        target_country_name = result['actual_country_name'] if target_country == result['actual_country'] else result['actual_country_name']
         
-        if update_database_entry(database, ip, mismatch['asn'], result['actual_country'], 
-                                result['actual_country_name'], pool, org_name):
+        if update_database_entry(database, ip, mismatch['asn'], target_country,
+                                target_country_name, pool, org_name):
             print(f"{Colors.OKGREEN}{t('db_updated')}{Colors.ENDC}")
             
             print(f"\n{Colors.OKCYAN}{t('step3')}...{Colors.ENDC}")
