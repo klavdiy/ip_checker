@@ -385,19 +385,20 @@
     },
     {
       "asn": "none_ASN",
-      "owner": "RIPE Network Coordination Centre",
-      "country_code": "LT",
-      "country_name": "Lithuania",
+      "owner": "United States Department of Defense (DoD)",
+      "country_code": "US",
+      "country_name": "United States",
       "region": "Multi-Regional",
-      "expected_country": "LT",
-      "expected_country_name": "Lithuania",
+      "expected_country": "US",
+      "expected_country_name": "United States",
       "ip_pools": [
-        "45.0.0.0/8"
+        "45.0.0.0/8",
+        "143.0.0.0/8"
       ],
       "check_status": "active",
-      "last_checked": "2026-04-23",
+      "last_checked": "2026-04-27",
       "verified": false,
-      "notes": "Auto-added entry for none_ASN"
+      "notes": "Updated: IP geolocation verified as US (United States)"
     },
     {
       "asn": "AS60330",
@@ -832,7 +833,7 @@
   ],
   "metadata": {
     "version": "2.0",
-    "last_updated": "2026-04-26",
+    "last_updated": "2026-04-27",
     "description": "Extended database of ASN information with regional operators for RU, BY, KZ, CN, AM Includes reference ASNs for major global IT/cloud vendors.",
     "countries": {
       "RU": {
@@ -897,7 +898,7 @@
       }
     },
     "total_asns": 46,
-    "total_ip_pools": 139,
+    "total_ip_pools": 140,
     "last_update_check": "2026-04-23",
     "next_update_prompt_after": "2026-04-23",
     "quarantine_cases": [

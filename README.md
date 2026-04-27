@@ -8,6 +8,7 @@
 - При старте выводит публичный egress IP текущей машины в ASCII-рамке.
 - Сравнение фактической страны IP с ожидаемой страной из `asn_database.json`.
 - При выводе результатов показывает контакт `abuse` (best-effort из WHOIS).
+- Если в WHOIS встречается только handle (например `abuse-c`), скрипт делает дополнительный lookup и пытается получить реальный контакт.
 - Интерактивная переклассификация ASN при mismatch.
 - Policy-разрешение конфликтов `whois` vs `ip-api`:
   - confidence score по источникам;
@@ -26,6 +27,8 @@
   - `traceroute/tracert` до `8.8.8.8` с ограничением хопов/ожидания;
   - `nslookup` для проверяемого адреса.
 - Управление long-run задачами: для `nmap` поддержано прерывание и возврат в предыдущее меню.
+- Geo-enrichment сравнение источников: Primary (`ip-api`), MaxMind, IP2Location.
+- Пункт меню `7` для настройки API ключей enrichment-провайдеров с сохранением в локальный конфиг.
 - Двуязычный интерфейс (RU/EN), цветной вывод, сохранение результатов в JSON.
 
 ## Структура проекта
@@ -36,8 +39,10 @@ ip_checker/
 ├── ip_checker.py          # Основной скрипт
 ├── ip_checker.sh          # Обёртка запуска
 ├── ip_checker.ps1         # Обёртка запуска для Windows PowerShell
-├── scan_results.json      # Результаты (создается при -s/--save)
-├── .language_config       # Выбранный язык (создается автоматически)
+├── .gitignore
+├── .language_config       # Создается автоматически при первом выборе языка
+├── .enrichment_config.json # Создается локально при настройке API ключей
+├── scan_results.json      # Создается при -s/--save
 └── README.md
 ```
 
@@ -48,6 +53,9 @@ ip_checker/
 - Утилита `whois` в системе (`whois 1.0+`)
 - Для доп. инструментов: `nmap`, `traceroute`/`tracert`, `nslookup`
 - Интернет для `ip-api.com` и WHOIS-серверов
+- Для enrichment (опционально):
+  - MaxMind: `geoip2` + `MAXMIND_DB_PATH` или ключи `ACCOUNT_ID:LICENSE_KEY` через меню `7`
+  - IP2Location: `IP2Location` (BIN) или API key через меню `7`
 
 ## Быстрый старт
 
@@ -78,7 +86,13 @@ Windows PowerShell:
 - `4` — Сменить язык
 - `5` — Справка
 - `6` — Обновить базу
+- `7` — Настроить API ключи обогащения
 - `0` — Выход
+
+В меню `7`:
+- `1` — MaxMind (`ACCOUNT_ID:LICENSE_KEY`)
+- `2` — IP2Location (API key)
+- `0` — Назад
 
 ## Формат вывода проверки IP
 
@@ -188,6 +202,9 @@ PowerShell:
 
 - Геолокация: `ip-api.com`
 - ASN/route/provider: системный `whois` с реферальными WHOIS-серверами
+- Опциональное enrichment-сравнение:
+  - MaxMind (Web Service или локальная MMDB)
+  - IP2Location (API или локальная BIN)
 
 ## Политика рассинхронизации источников
 
