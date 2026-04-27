@@ -6,6 +6,7 @@ __pycache__/
 # Local runtime/config artifacts
 .language_config
 scan_results.json
+.enrichment_config.json
 
 # OS/editor local files
 .DS_Store

@@ -29,6 +29,7 @@ SCRIPT_DIR = Path(__file__).parent
 DATABASE_FILE = SCRIPT_DIR / "asn_database.json"
 RESULTS_FILE = SCRIPT_DIR / "scan_results.json"
 LANGUAGE_FILE = SCRIPT_DIR / ".language_config"
+ENRICHMENT_CONFIG_FILE = SCRIPT_DIR / ".enrichment_config.json"
 
 # Global language setting
 CURRENT_LANGUAGE = "en"
@@ -137,6 +138,12 @@ TRANSLATIONS = {
         "abuse_rir_fallback_lookup": "Abuse not found in primary WHOIS. Querying RIR WHOIS: ",
         "abuse_rir_fallback_done": "RIR WHOIS query completed: ",
         "abuse_contact_inferred": "Abuse / complaints (inferred from WHOIS emails): ",
+        "enrich_title": "Geo enrichment comparison",
+        "enrich_primary": "Primary",
+        "enrich_maxmind": "MaxMind",
+        "enrich_ip2location": "IP2Location",
+        "enrich_unavailable": "unavailable",
+        "enrich_need_api_key": "no data (API KEY required)",
         "auth_check_title": "Authenticity check: ",
         "auth_check_ok": "no obvious conflict signals",
         "auth_check_warn_geo_whois": "geo country and WHOIS country differ",
@@ -154,6 +161,20 @@ TRANSLATIONS = {
         "tools_done": "— done —",
         "tools_cmd_missing": "Command not found in PATH: ",
         "tools_invalid": "Invalid choice.",
+        "menu_7": "7. Configure enrichment API keys",
+        "menu_prompt_main": "Select option (0-7): ",
+        "enrich_cfg_title": "Enrichment API key setup",
+        "enrich_cfg_opt_1": "1. MaxMind",
+        "enrich_cfg_opt_2": "2. IP2Location",
+        "enrich_cfg_opt_0": "0. Back",
+        "enrich_cfg_prompt": "Select (0-2): ",
+        "enrich_cfg_mm_prompt": "Enter MaxMind key as ACCOUNT_ID:LICENSE_KEY (or 0 to go back): ",
+        "enrich_cfg_ip2_prompt": "Enter IP2Location API key (or 0 to go back): ",
+        "enrich_cfg_saved": "Saved.",
+        "enrich_cfg_save_failed": "Failed to save config.",
+        "enrich_cfg_invalid": "Invalid format.",
+        "enrich_cfg_next": "Configure another service key? (y/n): ",
+        "enrich_cfg_done": "All done. Return to main menu.",
     },
     "ru": {
         "menu_title": "═══════════════════════════════════════════════════════════",
@@ -241,6 +262,12 @@ TRANSLATIONS = {
         "abuse_rir_fallback_lookup": "В основном WHOIS abuse не найден. Запрашиваю WHOIS RIR: ",
         "abuse_rir_fallback_done": "Запрос WHOIS RIR выполнен: ",
         "abuse_contact_inferred": "Abuse / жалобы (эвристика по email из WHOIS): ",
+        "enrich_title": "Сравнение geo-обогащения",
+        "enrich_primary": "Primary",
+        "enrich_maxmind": "MaxMind",
+        "enrich_ip2location": "IP2Location",
+        "enrich_unavailable": "недоступно",
+        "enrich_need_api_key": "нет данных (нужен API KEY)",
         "auth_check_title": "Проверка подлинности: ",
         "auth_check_ok": "явных конфликтов не обнаружено",
         "auth_check_warn_geo_whois": "страна geo и страна WHOIS отличаются",
@@ -258,6 +285,20 @@ TRANSLATIONS = {
         "tools_done": "— готово —",
         "tools_cmd_missing": "Команда не найдена в PATH: ",
         "tools_invalid": "Неверный выбор.",
+        "menu_7": "7. Настроить API ключи обогащения",
+        "menu_prompt_main": "Выберите опцию (0-7): ",
+        "enrich_cfg_title": "Настройка API ключей обогащения",
+        "enrich_cfg_opt_1": "1. MaxMind",
+        "enrich_cfg_opt_2": "2. IP2Location",
+        "enrich_cfg_opt_0": "0. Назад",
+        "enrich_cfg_prompt": "Выберите (0-2): ",
+        "enrich_cfg_mm_prompt": "Введите ключ MaxMind в формате ACCOUNT_ID:LICENSE_KEY (или 0 назад): ",
+        "enrich_cfg_ip2_prompt": "Введите API ключ IP2Location (или 0 назад): ",
+        "enrich_cfg_saved": "Сохранено.",
+        "enrich_cfg_save_failed": "Не удалось сохранить конфиг.",
+        "enrich_cfg_invalid": "Неверный формат.",
+        "enrich_cfg_next": "Настроить ключ для другого сервиса? (y/n): ",
+        "enrich_cfg_done": "Готово. Возврат в главное меню.",
     }
 }
 
@@ -289,6 +330,88 @@ def save_language_config(lang: str):
             f.write(lang)
     except:
         pass
+
+def load_enrichment_config() -> Dict:
+    """Load locally stored enrichment provider credentials."""
+    try:
+        if ENRICHMENT_CONFIG_FILE.exists():
+            with open(ENRICHMENT_CONFIG_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                return data if isinstance(data, dict) else {}
+    except Exception:
+        pass
+    return {}
+
+def save_enrichment_config(config: Dict) -> bool:
+    """Persist enrichment provider credentials to local config."""
+    try:
+        with open(ENRICHMENT_CONFIG_FILE, "w", encoding="utf-8") as f:
+            json.dump(config, f, indent=2, ensure_ascii=False)
+        return True
+    except Exception:
+        return False
+
+def configure_enrichment_keys_menu() -> None:
+    """Interactive setup for MaxMind/IP2Location API keys."""
+    if not (sys.stdin.isatty() and sys.stdout.isatty()):
+        return
+    config = load_enrichment_config()
+    while True:
+        print(f"\n{Colors.HEADER}{'-' * 60}{Colors.ENDC}")
+        print(f"{Colors.BOLD}{t('enrich_cfg_title')}{Colors.ENDC}")
+        print(f"{Colors.OKCYAN}{t('enrich_cfg_opt_1')}{Colors.ENDC}")
+        print(f"{Colors.OKCYAN}{t('enrich_cfg_opt_2')}{Colors.ENDC}")
+        print(f"{Colors.OKCYAN}{t('enrich_cfg_opt_0')}{Colors.ENDC}")
+        try:
+            choice = input(f"{Colors.WARNING}{t('enrich_cfg_prompt')}{Colors.ENDC}").strip()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            return
+
+        if choice == "0":
+            return
+        if choice == "1":
+            raw = input(f"{Colors.OKCYAN}{t('enrich_cfg_mm_prompt')}{Colors.ENDC}").strip()
+            if raw == "0":
+                continue
+            if ":" not in raw:
+                print(f"{Colors.FAIL}{t('enrich_cfg_invalid')}{Colors.ENDC}")
+                continue
+            account_id, license_key = raw.split(":", 1)
+            account_id, license_key = account_id.strip(), license_key.strip()
+            if not account_id or not license_key:
+                print(f"{Colors.FAIL}{t('enrich_cfg_invalid')}{Colors.ENDC}")
+                continue
+            config["maxmind_account_id"] = account_id
+            config["maxmind_license_key"] = license_key
+            if save_enrichment_config(config):
+                print(f"{Colors.OKGREEN}{t('enrich_cfg_saved')}{Colors.ENDC}")
+            else:
+                print(f"{Colors.FAIL}{t('enrich_cfg_save_failed')}{Colors.ENDC}")
+        elif choice == "2":
+            key = input(f"{Colors.OKCYAN}{t('enrich_cfg_ip2_prompt')}{Colors.ENDC}").strip()
+            if key == "0":
+                continue
+            if not key:
+                print(f"{Colors.FAIL}{t('enrich_cfg_invalid')}{Colors.ENDC}")
+                continue
+            config["ip2location_api_key"] = key
+            if save_enrichment_config(config):
+                print(f"{Colors.OKGREEN}{t('enrich_cfg_saved')}{Colors.ENDC}")
+            else:
+                print(f"{Colors.FAIL}{t('enrich_cfg_save_failed')}{Colors.ENDC}")
+        else:
+            print(f"{Colors.WARNING}{t('tools_invalid')}{Colors.ENDC}")
+            continue
+
+        while True:
+            nxt = input(f"{Colors.WARNING}{t('enrich_cfg_next')}{Colors.ENDC}").strip().lower()
+            if nxt in ("y", "n"):
+                break
+            print(f"{Colors.WARNING}{t('unknown_ip_invalid_yes_no')}{Colors.ENDC}")
+        if nxt == "n":
+            print(f"{Colors.OKGREEN}{t('enrich_cfg_done')}{Colors.ENDC}")
+            return
 
 def select_language_menu():
     """Interactive language selection"""
@@ -625,6 +748,103 @@ def get_ip_geolocation(ip: str) -> Optional[Dict]:
     except Exception as e:
         return {'ip': ip, 'error': str(e), 'success': False}
 
+def get_maxmind_enrichment(ip: str) -> Dict:
+    """
+    Optional MaxMind enrichment.
+    Requires env MAXMIND_DB_PATH pointing to GeoLite2-City/GeoLite2-Country MMDB.
+    """
+    cfg = load_enrichment_config()
+    account_id = str(cfg.get("maxmind_account_id", "")).strip() or os.getenv("MAXMIND_ACCOUNT_ID", "").strip()
+    license_key = str(cfg.get("maxmind_license_key", "")).strip() or os.getenv("MAXMIND_LICENSE_KEY", "").strip()
+    if account_id and license_key:
+        try:
+            import geoip2.webservice  # type: ignore
+            client = geoip2.webservice.Client(int(account_id), license_key)
+            city = client.city(ip)
+            return {
+                "available": True,
+                "country_code": (city.country.iso_code or "").upper() or None,
+                "country": city.country.name or None,
+                "city": city.city.name or None,
+            }
+        except Exception as exc:
+            return {"available": False, "reason": str(exc)}
+
+    db_path = os.getenv("MAXMIND_DB_PATH", "").strip()
+    if not db_path:
+        return {"available": False, "reason": "MAXMIND_ACCOUNT_ID/MAXMIND_LICENSE_KEY or MAXMIND_DB_PATH not set"}
+    try:
+        import geoip2.database  # type: ignore
+        with geoip2.database.Reader(db_path) as reader:
+            city = reader.city(ip)
+            return {
+                "available": True,
+                "country_code": (city.country.iso_code or "").upper() or None,
+                "country": city.country.name or None,
+                "city": city.city.name or None,
+            }
+    except Exception as exc:
+        return {"available": False, "reason": str(exc)}
+
+def get_ip2location_enrichment(ip: str) -> Dict:
+    """
+    Optional IP2Location enrichment.
+    Supports:
+      - env IP2LOCATION_API_KEY (web API)
+      - env IP2LOCATION_DB_PATH (local BIN via IP2Location python package)
+    """
+    cfg = load_enrichment_config()
+    api_key = str(cfg.get("ip2location_api_key", "")).strip() or os.getenv("IP2LOCATION_API_KEY", "").strip()
+    if api_key:
+        try:
+            url = f"https://api.ip2location.io/?key={api_key}&ip={ip}&format=json"
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=8) as response:
+                data = json.loads(response.read().decode("utf-8"))
+            return {
+                "available": True,
+                "country_code": normalize_country_code(data.get("country_code")),
+                "country": data.get("country_name"),
+                "city": data.get("city_name"),
+            }
+        except Exception as exc:
+            return {"available": False, "reason": str(exc)}
+
+    db_path = os.getenv("IP2LOCATION_DB_PATH", "").strip()
+    if db_path:
+        try:
+            import IP2Location  # type: ignore
+            db = IP2Location.IP2Location(db_path)
+            rec = db.get_all(ip)
+            return {
+                "available": True,
+                "country_code": normalize_country_code(getattr(rec, "country_short", None)),
+                "country": getattr(rec, "country_long", None),
+                "city": getattr(rec, "city", None),
+            }
+        except Exception as exc:
+            return {"available": False, "reason": str(exc)}
+
+    return {"available": False, "reason": "IP2LOCATION_API_KEY/IP2LOCATION_DB_PATH not set"}
+
+def print_enrichment_comparison(ip: str, geo_data: Dict) -> None:
+    """Print side-by-side country comparison for primary, MaxMind and IP2Location."""
+    mm = get_maxmind_enrichment(ip)
+    ip2 = get_ip2location_enrichment(ip)
+    primary_cc = normalize_country_code(geo_data.get("country_code"))
+    primary_name = geo_data.get("country") or "N/A"
+    print(f"\n{Colors.HEADER}{'-' * 60}{Colors.ENDC}")
+    print(f"{Colors.BOLD}{t('enrich_title')}{Colors.ENDC}")
+    print(f"  {t('enrich_primary')}: {primary_cc or 'N/A'} ({primary_name})")
+    if mm.get("available"):
+        print(f"  {t('enrich_maxmind')}: {mm.get('country_code') or 'N/A'} ({mm.get('country') or 'N/A'})")
+    else:
+        print(f"  {t('enrich_maxmind')}: {t('enrich_need_api_key')}")
+    if ip2.get("available"):
+        print(f"  {t('enrich_ip2location')}: {ip2.get('country_code') or 'N/A'} ({ip2.get('country') or 'N/A'})")
+    else:
+        print(f"  {t('enrich_ip2location')}: {t('enrich_need_api_key')}")
+
 def get_own_public_egress_info() -> Optional[Dict]:
     """Public egress IP and brief geo for this machine (ip-api.com, no target IP in URL)."""
     try:
@@ -678,9 +898,9 @@ _ABUSE_LINE_PATTERNS = [
     re.compile(r"^\s*abuse-mailbox\s*:\s*(.+)$", re.IGNORECASE | re.MULTILINE),
     re.compile(r"^\s*abuse-e-mail\s*:\s*(.+)$", re.IGNORECASE | re.MULTILINE),
     re.compile(r"^\s*orgabuseemail\s*:\s*(.+)$", re.IGNORECASE | re.MULTILINE),
-    re.compile(r"^\s*abuse-c\s*:\s*(.+)$", re.IGNORECASE | re.MULTILINE),
     re.compile(r"^\s*% abuse contact for .+?:\s*(.+)$", re.IGNORECASE | re.MULTILINE),
 ]
+_ABUSE_HANDLE_RE = re.compile(r"^\s*abuse-c\s*:\s*([A-Z0-9\-_]{2,32})\s*$", re.IGNORECASE | re.MULTILINE)
 
 _EMAIL_RE = re.compile(r"\b[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}\b", re.IGNORECASE)
 
@@ -725,6 +945,15 @@ def parse_abuse_from_whois(whois_text: str) -> Optional[str]:
         return None
     return " | ".join(found[:3])
 
+def extract_abuse_handle(whois_text: str) -> Optional[str]:
+    """Extract abuse-c handle (e.g. ATI) for additional WHOIS lookup."""
+    if not whois_text:
+        return None
+    m = _ABUSE_HANDLE_RE.search(whois_text)
+    if not m:
+        return None
+    return (m.group(1) or "").strip() or None
+
 def print_abuse_line_from_whois_text(whois_text: str) -> None:
     abuse = parse_abuse_from_whois(whois_text)
     if abuse:
@@ -743,6 +972,13 @@ def print_abuse_with_rir_fallback(ip: str, whois_data: Optional[Dict], whois_tim
         print(f"{Colors.OKCYAN}{t('abuse_contact')}{Colors.ENDC}{abuse}")
         return
 
+    handle = extract_abuse_handle(w.get("whois_text", ""))
+    if handle:
+        resolved = resolve_abuse_handle_contact(handle, w.get("whois_server"), timeout_seconds=max(8, whois_timeout))
+        if resolved:
+            print(f"{Colors.OKCYAN}{t('abuse_contact')}{Colors.ENDC}{' | '.join(resolved)}")
+            return
+
     fallback_server = default_whois_server_for_rir(w.get("rir"))
     if fallback_server:
         print(f"{Colors.WARNING}{t('abuse_rir_fallback_lookup')}{fallback_server}{Colors.ENDC}")
@@ -754,6 +990,12 @@ def print_abuse_with_rir_fallback(ip: str, whois_data: Optional[Dict], whois_tim
             if abuse_rir:
                 print(f"{Colors.OKCYAN}{t('abuse_contact')}{Colors.ENDC}{abuse_rir}")
                 return
+            handle_rir = extract_abuse_handle(wr.get("whois_text", ""))
+            if handle_rir:
+                resolved_rir = resolve_abuse_handle_contact(handle_rir, fallback_server, timeout_seconds=max(8, whois_timeout))
+                if resolved_rir:
+                    print(f"{Colors.OKCYAN}{t('abuse_contact')}{Colors.ENDC}{' | '.join(resolved_rir)}")
+                    return
 
     # Final fallback: infer likely abuse/security contact emails from WHOIS content.
     candidates: List[str] = []
@@ -777,6 +1019,25 @@ def fetch_and_print_abuse_contact(ip: str, whois_timeout: int = 14) -> None:
         print(f"{Colors.OKCYAN}{t('abuse_contact')}{Colors.ENDC}{t('abuse_not_found')}{suffix}")
         return
     print_abuse_with_rir_fallback(ip, w, whois_timeout=whois_timeout)
+
+def resolve_abuse_handle_contact(handle: str, whois_server: Optional[str], timeout_seconds: int = 12) -> List[str]:
+    """Resolve abuse-c handle into likely contact emails via raw WHOIS query."""
+    cmd = ["whois", handle]
+    if whois_server:
+        cmd = ["whois", "-h", whois_server, handle]
+    try:
+        r = subprocess.run(cmd, text=True, capture_output=True, timeout=timeout_seconds, check=False)
+    except Exception:
+        return []
+    text = r.stdout or ""
+    vals: List[str] = []
+    parsed = parse_abuse_from_whois(text)
+    if parsed:
+        vals.extend([x.strip() for x in parsed.split("|") if x.strip()])
+    for e in extract_candidate_abuse_emails(text):
+        if e not in vals:
+            vals.append(e)
+    return vals[:3]
 
 def run_external_tool(argv: List[str]) -> None:
     """Run a command with inherited stdio."""
@@ -997,7 +1258,11 @@ def get_whois_data(ip: str, timeout_seconds: int = 20, whois_server: Optional[st
                 parts = line.split(':')
                 if len(parts) > 1:
                     country = parts[-1].strip()[:2].upper()
-            if 'orgname' in line_lower or 'org-name' in line_lower:
+            if org is None and (
+                'orgname' in line_lower or 'org-name' in line_lower or 'organization' in line_lower
+                or line_lower.startswith('owner:') or line_lower.startswith('ownername:')
+                or line_lower.startswith('descr:') or line_lower.startswith('netname:')
+            ):
                 parts = line.split(':')
                 if len(parts) > 1:
                     org = parts[-1].strip()
@@ -1012,6 +1277,18 @@ def get_whois_data(ip: str, timeout_seconds: int = 20, whois_server: Optional[st
             return {'error': 'empty whois response'}
 
         inferred_server = whois_server or referred_server
+
+        # Secondary referral lookup for sparse WHOIS outputs (common in some RIR responses).
+        if inferred_server and (asn is None or org is None or country is None) and not whois_server:
+            wr = get_whois_data(ip, timeout_seconds=max(8, timeout_seconds - 2), whois_server=inferred_server)
+            if wr and not wr.get("error"):
+                asn = asn or wr.get("asn")
+                org = org or wr.get("org")
+                country = country or wr.get("country")
+                if wr.get("whois_text"):
+                    whois_text = f"{whois_text}\n\n{wr.get('whois_text')}"
+                inferred_server = wr.get("whois_server") or inferred_server
+
         rir = infer_rir_from_whois_server(inferred_server)
         return {
             'asn': asn,
@@ -1333,6 +1610,9 @@ def handle_unknown_ip(
         # High-visibility warning: white text over red background.
         print(f"{Colors.WHITE}{Colors.BGRED}{warn_text}{Colors.ENDC}")
 
+    if interactive_extras:
+        print_enrichment_comparison(ip, result.get("geo_data", {}))
+
     # Ask if user wants to add to database
     print(f"\n{Colors.WARNING}{t('unknown_ip_add_offer')}{Colors.ENDC}", end="")
     try:
@@ -1617,8 +1897,9 @@ def main():
             print("4. Выбрать язык")
             print("5. Справка")
             print("6. Обновить базу")
+            print(t("menu_7"))
             print("0. Выход")
-            prompt_text = "Выберите опцию (0-6): "
+            prompt_text = t("menu_prompt_main")
         else:
             print("1. Check single IP address")
             print("2. Check IP range")
@@ -1626,8 +1907,9 @@ def main():
             print("4. Change language")
             print("5. Help")
             print("6. Update database")
+            print(t("menu_7"))
             print("0. Exit")
-            prompt_text = "Select option (0-6): "
+            prompt_text = t("menu_prompt_main")
         
         try:
             choice = input(f"{Colors.OKCYAN}{prompt_text}{Colors.ENDC}").strip()
@@ -1754,6 +2036,8 @@ def main():
                 database = load_database()
             else:
                 print(f"{Colors.FAIL}{t('db_update_failed')}{reason or 'unknown error'}{Colors.ENDC}")
+        elif choice == "7":
+            configure_enrichment_keys_menu()
 
         else:
             if CURRENT_LANGUAGE == "ru":
