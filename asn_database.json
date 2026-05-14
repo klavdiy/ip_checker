@@ -1,0 +1,945 @@
+{
+  "asn_data": [
+    {
+      "asn": "AS12389",
+      "owner": "TalkTalk",
+      "country_code": "GB",
+      "country_name": "United Kingdom",
+      "region": "Multi-Regional",
+      "expected_country": "GB",
+      "expected_country_name": "United Kingdom",
+      "ip_pools": [
+        "83.0.0.0/8",
+        "84.0.0.0/8",
+        "85.0.0.0/8",
+        "86.0.0.0/8"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-05-13",
+      "verified": true,
+      "notes": "Updated: IP geolocation verified as GB (United Kingdom)"
+    },
+    {
+      "asn": "AS20485",
+      "owner": "Rostelecom (Moscow regional)",
+      "country_code": "RU",
+      "country_name": "Russia",
+      "region": "Moscow",
+      "expected_country": "RU",
+      "expected_country_name": "Russia",
+      "ip_pools": [
+        "212.79.0.0/16",
+        "212.80.0.0/16",
+        "213.24.0.0/16"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-17",
+      "verified": true,
+      "notes": "Rostelecom Moscow branch"
+    },
+    {
+      "asn": "AS51574",
+      "owner": "MEGAFON (JSC)",
+      "country_code": "RU",
+      "country_name": "Russia",
+      "region": "Multi-Regional",
+      "expected_country": "RU",
+      "expected_country_name": "Russia",
+      "ip_pools": [
+        "91.0.0.0/8",
+        "95.0.0.0/8",
+        "188.0.0.0/8"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-17",
+      "verified": true,
+      "notes": "MEGAFON mobile operator Russia"
+    },
+    {
+      "asn": "AS201776",
+      "owner": "MTS Group (MTS PJSC)",
+      "country_code": "RU",
+      "country_name": "Russia",
+      "region": "Multi-Regional",
+      "expected_country": "RU",
+      "expected_country_name": "Russia",
+      "ip_pools": [
+        "89.0.0.0/8",
+        "217.0.0.0/8",
+        "218.0.0.0/8"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-17",
+      "verified": true,
+      "notes": "MTS mobile operator Russia"
+    },
+    {
+      "asn": "AS39798",
+      "owner": "PRIMACY BROADCAST",
+      "country_code": "RU",
+      "country_name": "Russia",
+      "region": "Multi-Regional",
+      "expected_country": "RU",
+      "expected_country_name": "Russia",
+      "ip_pools": [
+        "193.0.0.0/8",
+        "195.0.0.0/8",
+        "196.0.0.0/8"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-17",
+      "verified": true,
+      "notes": "Broadcast and ISP backbone"
+    },
+    {
+      "asn": "AS42610",
+      "owner": "MPTELECOM",
+      "country_code": "RU",
+      "country_name": "Russia",
+      "region": "Moscow",
+      "expected_country": "RU",
+      "expected_country_name": "Russia",
+      "ip_pools": [
+        "81.0.0.0/8",
+        "213.0.0.0/9"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-17",
+      "verified": true,
+      "notes": "Moscow ISP provider"
+    },
+    {
+      "asn": "AS25159",
+      "owner": "SMARTTEL-AS",
+      "country_code": "RU",
+      "country_name": "Russia",
+      "region": "Moscow",
+      "expected_country": "RU",
+      "expected_country_name": "Russia",
+      "ip_pools": [
+        "194.0.0.0/9",
+        "212.0.0.0/10"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-17",
+      "verified": true,
+      "notes": "Moscow ISP and hosting provider"
+    },
+    {
+      "asn": "AS3216",
+      "owner": "OJSC Beltelecom",
+      "country_code": "BY",
+      "country_name": "Belarus",
+      "region": "Multi-Regional",
+      "expected_country": "BY",
+      "expected_country_name": "Belarus",
+      "ip_pools": [
+        "178.172.0.0/14",
+        "195.19.0.0/16",
+        "193.67.0.0/16"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-17",
+      "verified": true,
+      "notes": "Main telecom operator Belarus"
+    },
+    {
+      "asn": "AS21011",
+      "owner": "Peter Pan sp. z o.o",
+      "country_code": "PL",
+      "country_name": "Poland",
+      "region": "Multi-Regional",
+      "expected_country": "PL",
+      "expected_country_name": "Poland",
+      "ip_pools": [
+        "195.24.0.0/16",
+        "195.20.0.0/15",
+        "212.111.0.0/16"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-05-13",
+      "verified": true,
+      "notes": "Updated: IP geolocation verified as PL (Poland)"
+    },
+    {
+      "asn": "AS20912",
+      "owner": "Beltelecom Regional",
+      "country_code": "BY",
+      "country_name": "Belarus",
+      "region": "Regional",
+      "expected_country": "BY",
+      "expected_country_name": "Belarus",
+      "ip_pools": [
+        "212.112.0.0/16",
+        "195.154.0.0/16"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-17",
+      "verified": true,
+      "notes": "Regional Beltelecom branch"
+    },
+    {
+      "asn": "AS9198",
+      "owner": "Kazakhtelecom (KazakhTelecom JSC)",
+      "country_code": "KZ",
+      "country_name": "Kazakhstan",
+      "region": "Multi-Regional",
+      "expected_country": "KZ",
+      "expected_country_name": "Kazakhstan",
+      "ip_pools": [
+        "193.224.0.0/11",
+        "212.42.0.0/16",
+        "212.58.0.0/16",
+        "217.196.0.0/14"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-17",
+      "verified": true,
+      "notes": "Main telecom operator Kazakhstan"
+    },
+    {
+      "asn": "AS20473",
+      "owner": "China Enterprise ICT Solutions Limited",
+      "country_code": "CN",
+      "country_name": "China",
+      "region": "Multi-Regional",
+      "expected_country": "CN",
+      "expected_country_name": "China",
+      "ip_pools": [
+        "210.0.0.0/8",
+        "212.192.0.0/11"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-17",
+      "verified": true,
+      "notes": "Updated: IP geolocation verified as CN (China)"
+    },
+    {
+      "asn": "AS4134",
+      "owner": "China Telecom (CT)",
+      "country_code": "CN",
+      "country_name": "China",
+      "region": "Multi-Regional",
+      "expected_country": "CN",
+      "expected_country_name": "China",
+      "ip_pools": [
+        "1.0.0.0/8",
+        "14.0.0.0/8",
+        "27.0.0.0/9",
+        "36.0.0.0/8",
+        "39.0.0.0/8",
+        "42.0.0.0/8",
+        "49.0.0.0/8",
+        "58.0.0.0/8"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-17",
+      "verified": true,
+      "notes": "Major telecom operator China"
+    },
+    {
+      "asn": "AS9929",
+      "owner": "China Unicom (CU)",
+      "country_code": "CN",
+      "country_name": "China",
+      "region": "Multi-Regional",
+      "expected_country": "CN",
+      "expected_country_name": "China",
+      "ip_pools": [
+        "119.0.0.0/8",
+        "120.0.0.0/8",
+        "121.0.0.0/8",
+        "122.0.0.0/8",
+        "123.0.0.0/8",
+        "124.0.0.0/8",
+        "125.0.0.0/8"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-17",
+      "verified": true,
+      "notes": "China Unicom backbone"
+    },
+    {
+      "asn": "AS55967",
+      "owner": "China Mobile (CMI)",
+      "country_code": "CN",
+      "country_name": "China",
+      "region": "Multi-Regional",
+      "expected_country": "CN",
+      "expected_country_name": "China",
+      "ip_pools": [
+        "111.0.0.0/8",
+        "112.0.0.0/8",
+        "113.0.0.0/8",
+        "114.0.0.0/8",
+        "115.0.0.0/8",
+        "116.0.0.0/8",
+        "117.0.0.0/8",
+        "118.0.0.0/8"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-17",
+      "verified": true,
+      "notes": "China Mobile operator"
+    },
+    {
+      "asn": "AS24400",
+      "owner": "Fiberhome (China)",
+      "country_code": "CN",
+      "country_name": "China",
+      "region": "Regional",
+      "expected_country": "CN",
+      "expected_country_name": "China",
+      "ip_pools": [
+        "210.0.0.0/9",
+        "211.0.0.0/8"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-17",
+      "verified": true,
+      "notes": "Regional ISP provider China"
+    },
+    {
+      "asn": "AS20473",
+      "owner": "Rostelecom Armenia",
+      "country_code": "AM",
+      "country_name": "Armenia",
+      "region": "Yerevan",
+      "expected_country": "AM",
+      "expected_country_name": "Armenia",
+      "ip_pools": [
+        "195.154.0.0/16",
+        "212.50.0.0/16"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-17",
+      "verified": true,
+      "notes": "Rostelecom branch Armenia"
+    },
+    {
+      "asn": "AS39798",
+      "owner": "ArmenTel (Telecom Armenia)",
+      "country_code": "AM",
+      "country_name": "Armenia",
+      "region": "Multi-Regional",
+      "expected_country": "AM",
+      "expected_country_name": "Armenia",
+      "ip_pools": [
+        "195.48.0.0/16",
+        "195.49.0.0/16",
+        "212.9.0.0/16"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-17",
+      "verified": true,
+      "notes": "Main telecom provider Armenia"
+    },
+    {
+      "asn": "AS49788",
+      "owner": "Viva-MTS (Armenia)",
+      "country_code": "AM",
+      "country_name": "Armenia",
+      "region": "Multi-Regional",
+      "expected_country": "AM",
+      "expected_country_name": "Armenia",
+      "ip_pools": [
+        "195.50.0.0/16",
+        "212.61.0.0/16"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-17",
+      "verified": true,
+      "notes": "Mobile operator Armenia (Viva)"
+    },
+    {
+      "asn": "AS28573",
+      "owner": "Auto-added from IP 200.200.200.200",
+      "country_code": "BR",
+      "country_name": "Brazil",
+      "region": "Multi-Regional",
+      "expected_country": "BR",
+      "expected_country_name": "Brazil",
+      "ip_pools": [
+        "200.0.0.0/8"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-17",
+      "verified": false,
+      "notes": "Auto-added entry for AS28573"
+    },
+    {
+      "asn": "AS66666",
+      "owner": "Auto-added from IP 202.202.202.202",
+      "country_code": "CN",
+      "country_name": "China",
+      "region": "Multi-Regional",
+      "expected_country": "CN",
+      "expected_country_name": "China",
+      "ip_pools": [
+        "202.0.0.0/8"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-17",
+      "verified": false,
+      "notes": "Auto-added entry for AS66666"
+    },
+    {
+      "asn": "none_ASN",
+      "owner": "United States Department of Defense (DoD)",
+      "country_code": "US",
+      "country_name": "United States",
+      "region": "Multi-Regional",
+      "expected_country": "US",
+      "expected_country_name": "United States",
+      "ip_pools": [
+        "45.0.0.0/8",
+        "143.0.0.0/8"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-27",
+      "verified": false,
+      "notes": "Updated: IP geolocation verified as US (United States)"
+    },
+    {
+      "asn": "AS60330",
+      "owner": "Auto-added from IP 93.125.24.158",
+      "country_code": "BY",
+      "country_name": "Belarus",
+      "region": "Multi-Regional",
+      "expected_country": "BY",
+      "expected_country_name": "Belarus",
+      "ip_pools": [
+        "93.0.0.0/8"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-23",
+      "verified": false,
+      "notes": "Auto-added entry for AS60330"
+    },
+    {
+      "asn": "AS42772",
+      "owner": "Unitary enterprise A1",
+      "country_code": "BY",
+      "country_name": "Belarus",
+      "region": "Multi-Regional",
+      "expected_country": "BY",
+      "expected_country_name": "Belarus",
+      "ip_pools": [
+        "37.0.0.0/8"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-23",
+      "verified": false,
+      "notes": "Auto-added entry for AS42772"
+    },
+    {
+      "asn": "AS41700",
+      "owner": "Auto-added from IP 109.126.128.0",
+      "country_code": "BY",
+      "country_name": "Belarus",
+      "region": "Multi-Regional",
+      "expected_country": "BY",
+      "expected_country_name": "Belarus",
+      "ip_pools": [
+        "109.0.0.0/8"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-23",
+      "verified": false,
+      "notes": "Auto-added entry for AS41700"
+    },
+    {
+      "asn": "AS141039",
+      "owner": "Auto-added from IP 185.65.50.104",
+      "country_code": "IT",
+      "country_name": "Italy",
+      "region": "Multi-Regional",
+      "expected_country": "IT",
+      "expected_country_name": "Italy",
+      "ip_pools": [
+        "185.0.0.0/8"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-27",
+      "verified": false,
+      "notes": "Updated: IP geolocation verified as IT (Italy)"
+    },
+    {
+      "asn": "AS15169",
+      "owner": "Google LLC",
+      "country_code": "US",
+      "country_name": "United States",
+      "region": "Multi-Regional",
+      "expected_country": "US",
+      "expected_country_name": "United States",
+      "ip_pools": [
+        "8.8.8.0/24",
+        "8.8.4.0/24",
+        "142.250.0.0/15",
+        "172.217.0.0/16",
+        "216.58.192.0/19"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-26",
+      "verified": false,
+      "notes": "Major public prefixes (DNS, GCP edge); reference for geo checks"
+    },
+    {
+      "asn": "AS8075",
+      "owner": "Microsoft Corporation",
+      "country_code": "US",
+      "country_name": "United States",
+      "region": "Multi-Regional",
+      "expected_country": "US",
+      "expected_country_name": "United States",
+      "ip_pools": [
+        "13.64.0.0/11",
+        "20.33.0.0/16",
+        "40.64.0.0/10",
+        "52.96.0.0/12"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-26",
+      "verified": false,
+      "notes": "Azure / Microsoft public cloud ranges (representative)"
+    },
+    {
+      "asn": "AS16509",
+      "owner": "Amazon.com Inc.",
+      "country_code": "US",
+      "country_name": "United States",
+      "region": "Multi-Regional",
+      "expected_country": "US",
+      "expected_country_name": "United States",
+      "ip_pools": [
+        "3.0.0.0/9",
+        "52.84.0.0/14",
+        "54.192.0.0/12",
+        "99.79.0.0/16"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-26",
+      "verified": false,
+      "notes": "AWS public prefixes (representative)"
+    },
+    {
+      "asn": "AS6185",
+      "owner": "Apple Inc.",
+      "country_code": "US",
+      "country_name": "United States",
+      "region": "Multi-Regional",
+      "expected_country": "US",
+      "expected_country_name": "United States",
+      "ip_pools": [
+        "17.0.0.0/9",
+        "17.248.0.0/16",
+        "17.253.0.0/16",
+        "2620:149:a::/48"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-26",
+      "verified": false,
+      "notes": "Apple services / iCloud edge (includes IPv6 sample)"
+    },
+    {
+      "asn": "AS32934",
+      "owner": "Meta Platforms Inc.",
+      "country_code": "US",
+      "country_name": "United States",
+      "region": "Multi-Regional",
+      "expected_country": "US",
+      "expected_country_name": "United States",
+      "ip_pools": [
+        "31.13.64.0/18",
+        "157.240.0.0/16",
+        "129.134.0.0/16"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-26",
+      "verified": false,
+      "notes": "Facebook / Instagram / WhatsApp edge"
+    },
+    {
+      "asn": "AS40027",
+      "owner": "Netflix Streaming Services Inc.",
+      "country_code": "US",
+      "country_name": "United States",
+      "region": "Multi-Regional",
+      "expected_country": "US",
+      "expected_country_name": "United States",
+      "ip_pools": [
+        "108.175.32.0/20",
+        "185.2.220.0/22",
+        "198.38.96.0/19"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-26",
+      "verified": false,
+      "notes": "Netflix Open Connect / streaming"
+    },
+    {
+      "asn": "AS31898",
+      "owner": "Oracle Corporation",
+      "country_code": "US",
+      "country_name": "United States",
+      "region": "Multi-Regional",
+      "expected_country": "US",
+      "expected_country_name": "United States",
+      "ip_pools": [
+        "134.70.0.0/16",
+        "141.145.0.0/16",
+        "192.29.96.0/20"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-26",
+      "verified": false,
+      "notes": "Oracle Cloud public ranges"
+    },
+    {
+      "asn": "AS36351",
+      "owner": "IBM / SoftLayer Technologies Inc.",
+      "country_code": "US",
+      "country_name": "United States",
+      "region": "Multi-Regional",
+      "expected_country": "US",
+      "expected_country_name": "United States",
+      "ip_pools": [
+        "169.61.0.0/16",
+        "169.62.0.0/16",
+        "161.26.0.0/16"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-26",
+      "verified": false,
+      "notes": "IBM Cloud / SoftLayer"
+    },
+    {
+      "asn": "AS14361",
+      "owner": "Salesforce.com Inc.",
+      "country_code": "US",
+      "country_name": "United States",
+      "region": "Multi-Regional",
+      "expected_country": "US",
+      "expected_country_name": "United States",
+      "ip_pools": [
+        "136.110.0.0/16",
+        "204.14.232.0/22",
+        "185.79.232.0/22"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-26",
+      "verified": false,
+      "notes": "Salesforce SaaS edge"
+    },
+    {
+      "asn": "AS15224",
+      "owner": "Adobe Inc.",
+      "country_code": "US",
+      "country_name": "United States",
+      "region": "Multi-Regional",
+      "expected_country": "US",
+      "expected_country_name": "United States",
+      "ip_pools": [
+        "192.147.0.0/16",
+        "52.10.0.0/15",
+        "130.248.0.0/16"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-26",
+      "verified": false,
+      "notes": "Adobe Creative Cloud / Experience Cloud"
+    },
+    {
+      "asn": "AS109",
+      "owner": "Cisco Systems Inc.",
+      "country_code": "US",
+      "country_name": "United States",
+      "region": "Multi-Regional",
+      "expected_country": "US",
+      "expected_country_name": "United States",
+      "ip_pools": [
+        "64.100.0.0/16",
+        "72.163.0.0/16",
+        "128.107.0.0/16"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-26",
+      "verified": false,
+      "notes": "Cisco corporate / services"
+    },
+    {
+      "asn": "AS12587",
+      "owner": "SAP SE",
+      "country_code": "DE",
+      "country_name": "Germany",
+      "region": "Multi-Regional",
+      "expected_country": "DE",
+      "expected_country_name": "Germany",
+      "ip_pools": [
+        "155.56.0.0/16",
+        "194.39.96.0/22",
+        "185.86.120.0/22"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-26",
+      "verified": false,
+      "notes": "SAP corporate / cloud edge"
+    },
+    {
+      "asn": "AS136907",
+      "owner": "Huawei Technologies Co. Ltd.",
+      "country_code": "CN",
+      "country_name": "China",
+      "region": "Multi-Regional",
+      "expected_country": "CN",
+      "expected_country_name": "China",
+      "ip_pools": [
+        "103.39.200.0/22",
+        "121.36.0.0/16",
+        "139.159.0.0/16"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-26",
+      "verified": false,
+      "notes": "Huawei cloud / services (representative)"
+    },
+    {
+      "asn": "AS45090",
+      "owner": "Tencent Building Kejizhongyi Avenue",
+      "country_code": "CN",
+      "country_name": "China",
+      "region": "Multi-Regional",
+      "expected_country": "CN",
+      "expected_country_name": "China",
+      "ip_pools": [
+        "101.226.0.0/16",
+        "157.255.0.0/16",
+        "109.244.0.0/16"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-26",
+      "verified": false,
+      "notes": "Tencent / WeChat / QQ edge"
+    },
+    {
+      "asn": "AS45102",
+      "owner": "Alibaba US Technology Co. Ltd.",
+      "country_code": "CN",
+      "country_name": "China",
+      "region": "Multi-Regional",
+      "expected_country": "CN",
+      "expected_country_name": "China",
+      "ip_pools": [
+        "47.88.0.0/16",
+        "47.89.0.0/16",
+        "47.90.0.0/15",
+        "121.40.0.0/16"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-26",
+      "verified": false,
+      "notes": "Alibaba Cloud public prefixes"
+    },
+    {
+      "asn": "AS138699",
+      "owner": "ByteDance Ltd.",
+      "country_code": "SG",
+      "country_name": "Singapore",
+      "region": "Multi-Regional",
+      "expected_country": "SG",
+      "expected_country_name": "Singapore",
+      "ip_pools": [
+        "103.136.220.0/22",
+        "185.255.56.0/22",
+        "199.59.148.0/22"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-26",
+      "verified": false,
+      "notes": "TikTok / ByteDance CDN (often announced from SG/US)"
+    },
+    {
+      "asn": "AS6619",
+      "owner": "SamsungSDS",
+      "country_code": "KR",
+      "country_name": "South Korea",
+      "region": "Multi-Regional",
+      "expected_country": "KR",
+      "expected_country_name": "South Korea",
+      "ip_pools": [
+        "211.45.0.0/16",
+        "203.247.160.0/20",
+        "218.144.0.0/12"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-26",
+      "verified": false,
+      "notes": "Samsung SDS / cloud"
+    },
+    {
+      "asn": "AS13884",
+      "owner": "NVIDIA Corporation",
+      "country_code": "US",
+      "country_name": "United States",
+      "region": "Multi-Regional",
+      "expected_country": "US",
+      "expected_country_name": "United States",
+      "ip_pools": [
+        "209.40.112.0/20",
+        "216.228.112.0/20",
+        "66.102.0.0/18"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-26",
+      "verified": false,
+      "notes": "NVIDIA corporate / developer"
+    },
+    {
+      "asn": "AS20940",
+      "owner": "Akamai International B.V.",
+      "country_code": "NL",
+      "country_name": "Netherlands",
+      "region": "Multi-Regional",
+      "expected_country": "NL",
+      "expected_country_name": "Netherlands",
+      "ip_pools": [
+        "23.48.0.0/16",
+        "184.24.0.0/16",
+        "184.25.0.0/16"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-26",
+      "verified": false,
+      "notes": "Akamai CDN (representative public prefixes; not exhaustive)"
+    },
+    {
+      "asn": "AS8708",
+      "owner": "Dell Technologies Inc.",
+      "country_code": "US",
+      "country_name": "United States",
+      "region": "Multi-Regional",
+      "expected_country": "US",
+      "expected_country_name": "United States",
+      "ip_pools": [
+        "143.166.0.0/16",
+        "128.221.0.0/16",
+        "12.26.0.0/16"
+      ],
+      "check_status": "active",
+      "last_checked": "2026-04-26",
+      "verified": false,
+      "notes": "Dell corporate / support networks (representative)"
+    }
+  ],
+  "metadata": {
+    "version": "2.0",
+    "last_updated": "2026-05-13",
+    "description": "Extended database of ASN information with regional operators for RU, BY, KZ, CN, AM Includes reference ASNs for major global IT/cloud vendors.",
+    "countries": {
+      "RU": {
+        "name": "Russia",
+        "operators_count": 7,
+        "description": "Russian Federation telecom operators"
+      },
+      "BY": {
+        "name": "Belarus",
+        "operators_count": 3,
+        "description": "Republic of Belarus telecom operators"
+      },
+      "KZ": {
+        "name": "Kazakhstan",
+        "operators_count": 2,
+        "description": "Republic of Kazakhstan telecom operators"
+      },
+      "CN": {
+        "name": "China",
+        "operators_count": 8,
+        "description": "People's Republic of China telecom operators"
+      },
+      "AM": {
+        "name": "Armenia",
+        "operators_count": 3,
+        "description": "Republic of Armenia telecom operators"
+      },
+      "BR": {
+        "name": "Brazil",
+        "operators_count": 0,
+        "description": "Brazil operators"
+      },
+      "LT": {
+        "name": "Lithuania",
+        "operators_count": 0,
+        "description": "Lithuania operators"
+      },
+      "US": {
+        "name": "United States",
+        "operators_count": 13,
+        "description": "United States operators (IT reference)"
+      },
+      "DE": {
+        "name": "Germany",
+        "operators_count": 1,
+        "description": "Germany operators (IT reference)"
+      },
+      "KR": {
+        "name": "South Korea",
+        "operators_count": 1,
+        "description": "South Korea operators (IT reference)"
+      },
+      "SG": {
+        "name": "Singapore",
+        "operators_count": 1,
+        "description": "Singapore operators (IT reference)"
+      },
+      "NL": {
+        "name": "Netherlands",
+        "operators_count": 1,
+        "description": "Netherlands operators (IT reference)"
+      },
+      "IT": {
+        "name": "Italy",
+        "operators_count": 0,
+        "description": "Italy operators"
+      },
+      "PL": {
+        "name": "Poland",
+        "operators_count": 0,
+        "description": "Poland operators"
+      },
+      "HU": {
+        "name": "Hungary",
+        "operators_count": 0,
+        "description": "Hungary operators"
+      },
+      "CH": {
+        "name": "Switzerland",
+        "operators_count": 0,
+        "description": "Switzerland operators"
+      },
+      "GB": {
+        "name": "United Kingdom",
+        "operators_count": 0,
+        "description": "United Kingdom operators"
+      }
+    },
+    "total_asns": 46,
+    "total_ip_pools": 140,
+    "last_update_check": "2026-05-13",
+    "next_update_prompt_after": "2026-05-13",
+    "quarantine_cases": [
+      {
+        "timestamp": "2026-04-27T10:28:10",
+        "ip": "196.56.34.123",
+        "asn": "AS39798",
+        "pool": "196.0.0.0/8",
+        "expected_country": "RU",
+        "ip_api_country": "DZ",
+        "whois_country": "ZA",
+        "whois_rir": "AFRINIC",
+        "reason": "ip-api differs from expected; whois differs from expected; whois and ip-api conflict; whois RIR detected: AFRINIC",
+        "confidence_score": 15,
+        "status": "open"
+      }
+    ]
+  }
+}
