@@ -1,9 +1,68 @@
 # FieldNet Kit — руководство пользователя
 
 > Полный мануал: меню TUI (0–11), CLI, JSON-сессии, карантин, troubleshooting.  
-> Краткий обзор, сценарии и архитектура — в [README](../README.md).
+> Краткий обзор и сценарии — в [README](../README.md).
 
 ---
+
+## Архитектура
+
+```mermaid
+flowchart TB
+  subgraph entry["Точка входа"]
+    CLI["fnkit.py / fnkit.sh"]
+    PATHS["paths.py"]
+    SCHEMA["schema.py"]
+  end
+
+  subgraph core["Базовые проверки"]
+    GEO["IP / ASN + локальная БД"]
+    BGP["Team Cymru BGP"]
+    PDNS["Passive DNS / RIPE Stat"]
+    EGRESS["Egress: Tor, proxy, hosting"]
+  end
+
+  subgraph lib["Модули lib/"]
+    NET["network_diag"]
+    DNS["dns_diag"]
+    PCAP["pcap_diag"]
+    OWASP["owasp_toolkit"]
+    TAKE["subdomain_takeover"]
+  end
+
+  subgraph data["data/"]
+    DB[(asn_database.json)]
+    SESS[(sessions: trace dns owasp ptr)]
+    OUT[(scan_results pcap dns_graph)]
+  end
+
+  CLI --> PATHS
+  PATHS --> SCHEMA
+  SCHEMA --> DB
+  PATHS --> GEO
+  GEO --> DB
+  GEO --> BGP
+  GEO --> PDNS
+  GEO --> EGRESS
+  CLI --> NET
+  CLI --> DNS
+  CLI --> PCAP
+  CLI --> OWASP
+  OWASP --> TAKE
+  NET --> SESS
+  DNS --> SESS
+  DNS --> OUT
+  PCAP --> OUT
+  OWASP --> SESS
+  GEO --> OUT
+```
+
+**Поток данных:** `fnkit.py` → `paths.py` (раскладка `data/`, миграция legacy-путей) → `schema.py` (версии JSON, совместимость) → проверки и модули `lib/` → артефакты в `data/`.
+
+**На диске:** `fnkit.py` и `paths.py` / `schema.py` в корне · Python-модули в `lib/` · базы, конфиг и сессии в `data/` (старые пути из корня переносятся при первом запуске). Подробнее о версиях схем: [SCHEMA.md](SCHEMA.md).
+
+---
+
 ## Навигация
 
 <details open>
@@ -13,6 +72,7 @@
 
 | | |
 |---|---|
+| [Архитектура](#архитектура) | Диаграмма компонентов и `data/` |
 | [Быстрый старт](#быстрый-старт) | Установка, `./fnkit.sh`, первый запуск |
 | [Экран при запуске](#экран-при-запуске) | Рамка с egress IP |
 | [Структура проекта](#структура-проекта) | Файлы и каталоги |

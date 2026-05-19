@@ -43,59 +43,6 @@ BGP origin: AS12389 — matches DB ASN, geo does not
 
 ---
 
-## Архитектура
-
-```mermaid
-flowchart TB
-  subgraph entry["Точка входа"]
-    CLI["fnkit.py / fnkit.sh"]
-    PATHS["paths.py"]
-  end
-
-  subgraph core["Базовые проверки"]
-    GEO["IP / ASN + локальная БД"]
-    BGP["Team Cymru BGP"]
-    PDNS["Passive DNS / RIPE Stat"]
-    EGRESS["Egress: Tor, proxy, hosting"]
-  end
-
-  subgraph lib["Модули lib/"]
-    NET["network_diag"]
-    DNS["dns_diag"]
-    PCAP["pcap_diag"]
-    OWASP["owasp_toolkit"]
-    TAKE["subdomain_takeover"]
-  end
-
-  subgraph data["data/"]
-    DB[(asn_database.json)]
-    SESS[(sessions: trace dns owasp ptr)]
-    OUT[(scan_results pcap dns_graph)]
-  end
-
-  CLI --> PATHS
-  PATHS --> GEO
-  GEO --> DB
-  GEO --> BGP
-  GEO --> PDNS
-  GEO --> EGRESS
-  CLI --> NET
-  CLI --> DNS
-  CLI --> PCAP
-  CLI --> OWASP
-  OWASP --> TAKE
-  NET --> SESS
-  DNS --> SESS
-  DNS --> OUT
-  PCAP --> OUT
-  OWASP --> SESS
-  GEO --> OUT
-```
-
-**Структура:** `fnkit.py` в корне репозитория · модули Python в `lib/` · базы, конфиг и сессии в `data/` (старые пути из корня переносятся при первом запуске).
-
----
-
 ## Почему FNkit, а не …
 
 | Задача | Обычный набор | FNkit |
@@ -169,7 +116,7 @@ Windows: `.\scripts\install-deps.ps1 -Profile minimal` → `.\fnkit.ps1 -i 8.8.8
 
 | Документ | Содержание |
 |----------|------------|
-| **[docs/USER_GUIDE.md](docs/USER_GUIDE.md)** | Полный мануал: все пункты меню, флаги CLI, форматы JSON, troubleshooting |
+| **[docs/USER_GUIDE.md](docs/USER_GUIDE.md)** | Полный мануал, **диаграмма архитектуры**, меню, CLI, JSON, troubleshooting |
 | [docs/SCHEMA.md](docs/SCHEMA.md) | Версии схем JSON, миграции, совместимость с `ip_checker_*` |
 | [docs/SBOM.md](docs/SBOM.md) | Зависимости, регенерация SBOM |
 | [docs/OWASP_INTEGRATION.md](docs/OWASP_INTEGRATION.md) | OWASP pipeline, сторонние инструменты |
