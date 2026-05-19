@@ -58,4 +58,4 @@ python3 -c "from schema import run_startup_migrations; print(run_startup_migrati
 1. Константа `SCHEMA_*_V3` / `FORMAT_*_V2` в `schema.py`.
 2. Функция `_migrate_*_v2_to_v3` и запись в цепочку `*_MIGRATIONS`.
 3. Обновить `CURRENT_SCHEMA`.
-4. Документировать здесь и в [USER_GUIDE.md](USER_GUIDE.md) при изменении полей.
+4. Документировать здесь и в [README.md](../README.md) при изменении полей.
