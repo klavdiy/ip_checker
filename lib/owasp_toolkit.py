@@ -365,6 +365,7 @@ def run_external(
 def fetch_response_headers(url: str, timeout: float = 15.0) -> Tuple[Dict[str, str], Optional[str]]:
     """HEAD with GET fallback; returns lower-case header names."""
     ctx = ssl.create_default_context()
+    ctx.minimum_version = ssl.TLSVersion.TLSv1_2
     last_err: Optional[str] = None
     for method in ("HEAD", "GET"):
         try:
@@ -580,6 +581,19 @@ def _tcp_open(host: str, port: int, timeout: float) -> bool:
         return False
 
 
+def _tls_client_context(*, verify: bool) -> ssl.SSLContext:
+    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    ctx.minimum_version = ssl.TLSVersion.TLSv1_2
+    if verify:
+        ctx.verify_mode = ssl.CERT_REQUIRED
+        ctx.check_hostname = True
+        ctx.load_default_certs()
+    else:
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+    return ctx
+
+
 def _tls_handshake(
     host: str,
     port: int,
@@ -588,11 +602,7 @@ def _tls_handshake(
     timeout: float,
     verify: bool,
 ) -> Dict[str, Any]:
-    ctx = ssl.create_default_context() if verify else ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-    if not verify:
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE
-        ctx.minimum_version = ssl.TLSVersion.TLSv1_2
+    ctx = _tls_client_context(verify=verify)
     try:
         with socket.create_connection((host, port), timeout=timeout) as raw:
             with ctx.wrap_socket(raw, server_hostname=sni) as ssock:
@@ -630,8 +640,7 @@ def _tls_probe_legacy(
     ctx.maximum_version = ver
     try:
         with socket.create_connection((host, port), timeout=timeout) as raw:
-            # codeql[py/insecure-protocol] intentional legacy TLS probe for security audit
-            with ctx.wrap_socket(raw, server_hostname=sni) as ssock:
+            with ctx.wrap_socket(raw, server_hostname=sni) as ssock:  # codeql[py/insecure-protocol]: legacy TLS audit probe
                 cipher = ssock.cipher()
                 return {
                     "label": label,
