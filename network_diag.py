@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
-CLI-сетевые инструменты: мониторинг задержки по хопам маршрута
-и приблизительный speedtest через публичные эндпоинты Cloudflare (HTTP).
+CLI-network tools: trace monitor and approximate speedtest via Cloudflare public endpoints (HTTP).
 """
 
 from __future__ import annotations

@@ -37,6 +37,19 @@
   - воспроизведение JSON: после просмотра **r** — повтор, **q** — назад в меню диагностики;
   - сохранённые сессии трассировки — каталог **`trace_sessions/`** (в **`.gitignore`**, по умолчанию не коммитится);
   - PCAP: захват **`tcpdump -w`** в папку **`network capture/`** (в **`.gitignore`**); после захвата автоматически проверяются заголовок (classic / PCAPNG), **SHA-256** и расшифровка полей; просмотр кадров — **`tshark`** или **`tcpdump -r`** (часто нужны права администратора / разрешения захвата на macOS).
+- **DNS-анализ** (пункт меню **`10`**, модуль `dns_diag.py`, стиль DNSDumper):
+  - BFS по записям **A / AAAA / CNAME / MX / NS / TXT / SOA** от seed-домена;
+  - граф узлов (домены, IP) и рёбер (тип записи, `same_ip` для общих адресов);
+  - опционально: wordlist поддоменов, пассивные имена **crt.sh**, сравнение резолверов (system / 1.1.1.1 / 8.8.8.8);
+  - geo на IP-узлах через **ip-api**; метрики (глубина, shared IP, CNAME-циклы, внешние NS);
+  - сессии JSON в **`dns_sessions/`**, интерактивный HTML-граф в **`dns_graph/`** (vis-network, нужен браузер);
+  - из PCAP: извлечение имён DNS через **`tshark`** (п. `5` в подменю DNS).
+- **OWASP toolkit** (пункт меню **`11`**, модуль `owasp_toolkit.py`):
+  - встроенная проверка **Secure Headers** (HTTP, без установки OWASP-кода);
+  - опционально **Amass** (пассивный enum) и **Nettacker** (`port_scan`) — внешние CLI, см. [docs/OWASP_THIRD_PARTY.md](docs/OWASP_THIRD_PARTY.md);
+  - чеклист **WSTG** — краткие пункты и ссылки (без копирования текста руководства);
+  - сценарий **pipeline** и JSON-сессии в **`owasp_sessions/`**;
+  - после проверки IP контекст (IP) подставляется в pipeline; в меню инструментов — быстрый Secure Headers.
 
 ## Структура проекта
 
@@ -46,7 +59,21 @@ ip_checker/
 ├── ip_checker.py          # Основной скрипт
 ├── network_diag.py       # трасс-монитор, speed-test, сохранение/повтор JSON
 ├── pcap_diag.py          # проверка и просмотр .pcap, захват через tcpdump
-├── tools/generate_sbom.py # генерация sbom.cdx.json и sbom.spdx.json
+├── dns_diag.py           # DNS-граф, поддомены, экспорт HTML
+├── owasp_toolkit.py      # OWASP: headers, Amass/Nettacker bridge, WSTG links
+├── requirements-dns.txt  # опционально: dnspython
+├── docs/OWASP_THIRD_PARTY.md   # лицензии сторонних OWASP-инструментов
+├── docs/OWASP_INTEGRATION.md   # примеры, pipeline, связь с модулями
+├── dependencies.manifest.json  # источник правды: все внешние зависимости
+├── requirements-dns.txt        # pip: dnspython
+├── requirements-optional.txt   # pip: geoip2, IP2Location
+├── scripts/check_deps.py       # проверка зависимостей (все ОС)
+├── scripts/install-deps.sh     # установка macOS/Linux
+├── scripts/install-deps.ps1    # установка Windows
+├── tools/generate_sbom.py      # генерация SBOM из манифеста
+├── sbom.cdx.json               # SBOM (CycloneDX 1.5)
+├── sbom.spdx.json              # SBOM (SPDX 2.3)
+├── docs/SBOM.md                # описание SBOM и групп
 ├── ip_checker.sh          # Обёртка запуска
 ├── ip_checker.ps1         # Обёртка запуска для Windows PowerShell
 ├── .gitignore
@@ -54,24 +81,55 @@ ip_checker/
 ├── .enrichment_config.json # Создается локально при настройке API ключей
 ├── .github/workflows/manual-run.yml # ручной запуск проверки через Actions
 ├── trace_sessions/        # JSON-сессии мониторинга (в .gitignore)
+├── dns_sessions/          # JSON-сессии DNS-графа (в .gitignore)
+├── dns_graph/             # HTML-графы (в .gitignore)
+├── owasp_sessions/        # JSON-сессии OWASP pipeline (в .gitignore)
 ├── network capture/      # выход tcpdump -w (в .gitignore)
 ├── scan_results.json      # Создается при -s/--save
 └── README.md
 ```
 
-## Требования
+## Требования и зависимости
 
-- macOS/Linux/Windows
-- Python 3.10+
-- Утилита `whois` в системе (`whois 1.0+`)
-- Для доп. инструментов: `nmap`, `traceroute`/`tracert`, `nslookup`, `ping`
-- Для диагностики маршрута: `traceroute` или `tracert` и **`ping`** (на узлах без ответного IP в traceroute ICMP не выполняется)
-- Для speed-test без доп. пакетов: только системный **`ping`** и HTTPS (urllib)
-- Для PCAP по возможности установить **`tshark`** (CLI Wireshark) и **`tcpdump`**; для захвата трафика обычно нужны права администратора / capture-доступ (на macOS — разрешения системы или `sudo`)
-- Интернет для `ip-api.com` и WHOIS-серверов
-- Для enrichment (опционально):
-  - MaxMind: `geoip2` + `MAXMIND_DB_PATH` или ключи `ACCOUNT_ID:LICENSE_KEY` через меню `7`
-  - IP2Location: `IP2Location` (BIN) или API key через меню `7`
+Полный перечень — в [`dependencies.manifest.json`](dependencies.manifest.json). SBOM: [`sbom.cdx.json`](sbom.cdx.json), [`docs/SBOM.md`](docs/SBOM.md).
+
+| Группа | Компоненты | Назначение |
+|--------|------------|------------|
+| **core** | Python 3.10+, `whois`, `ping`, ip-api, RIR WHOIS | IP/ASN |
+| **diagnostics** | `traceroute` / `tracert`, `nslookup` | Меню 4, инструменты |
+| **scan** | `nmap` | nmap после проверки IP |
+| **pcap** | `tcpdump`, `tshark` | PCAP |
+| **dns** | `dnspython`, crt.sh, `tshark` | Меню 10 |
+| **enrichment** | `geoip2`, `IP2Location` | Меню 7 |
+| **owasp** | `amass`, Nettacker (AGPL) | Меню 11 |
+
+### Проверка и установка (macOS / Linux / Windows)
+
+```bash
+# Проверить, что установлено
+python3 scripts/check_deps.py --group minimal
+python3 ip_checker.py --check-deps
+
+# Установить (macOS/Linux)
+chmod +x scripts/install-deps.sh
+./scripts/install-deps.sh minimal   # базовый набор
+./scripts/install-deps.sh full      # brew/apt + pip по максимуму
+```
+
+```powershell
+# Windows
+.\scripts\install-deps.ps1 -Profile minimal
+.\scripts\install-deps.ps1 -Profile full
+```
+
+```bash
+# Pip-зависимости вручную
+pip install -r requirements-dns.txt
+pip install -r requirements-optional.txt
+
+# SBOM после изменения манифеста
+python3 tools/generate_sbom.py
+```
 
 ## Быстрый старт
 
@@ -94,7 +152,7 @@ Windows PowerShell:
 
 ## Интерактивное меню
 
-Текущие пункты главного меню (цифра в консоли совпадает с номером строки **`1`…`9`**, **`0`** — выход):
+Текущие пункты главного меню (цифра в консоли совпадает с номером строки **`1`…`11`**, **`0`** — выход):
 
 - `1` — Проверить IP
 - `2` — Проверить диапазон IP
@@ -105,7 +163,28 @@ Windows PowerShell:
 - `7` — Настроить API ключи обогащения
 - `8` — Сменить язык
 - `9` — Справка
+- `10` — DNS-анализ (граф, поддомены, HTML, PCAP→DNS)
+- `11` — OWASP toolkit (Secure Headers, Amass, Nettacker, WSTG)
 - `0` — Выход
+
+CLI OWASP:
+
+```bash
+python3 ip_checker.py --owasp-headers https://example.com
+python3 ip_checker.py --owasp-amass example.com --owasp-save
+python3 ip_checker.py --owasp-pipeline --owasp-domain example.com --owasp-ip 203.0.113.1 --owasp-save
+```
+
+Подробнее: [docs/OWASP_INTEGRATION.md](docs/OWASP_INTEGRATION.md).
+
+CLI DNS (после `pip install dnspython`):
+
+```bash
+python3 ip_checker.py --dns example.com --dns-crtsh --dns-save
+python3 ip_checker.py --dns-replay dns_sessions/example_*.json
+python3 ip_checker.py --dns-replay dns_sessions/example.json --dns-export dns_graph/example.html
+python3 ip_checker.py --dns-pcap "network capture/cap.pcap" --dns example.com
+```
 
 Внутри **диагностики сети** (главное меню **`4`**) — подменю:
 
@@ -280,18 +359,32 @@ PowerShell:
 
 ## SBOM (Software Bill of Materials)
 
-В репозитории ведётся **SBOM** (CycloneDX / SPDX), а не «SDOM» — это стандартный перечень зависимостей и внешних утилит для поставки и аудита.
+В репозитории ведётся **SBOM** — перечень зависимостей, системных утилит и внешних сервисов для поставки и аудита (не путать с «SDOM»).
 
-- В репозитории поддерживаются два формата:
-  - `sbom.cdx.json` (CycloneDX 1.5)
-  - `sbom.spdx.json` (SPDX 2.3)
-- Обновление выполняется командой:
+| Файл | Формат |
+|------|--------|
+| `sbom.cdx.json` | [CycloneDX](https://cyclonedx.org/) 1.5 |
+| `sbom.spdx.json` | [SPDX](https://spdx.dev/) 2.3 |
+
+Генератор: `tools/generate_sbom.py` (версия приложения в SBOM: **0.1.0**).
+
+**Что входит в SBOM:**
+
+| Категория | Примеры |
+|-----------|---------|
+| Runtime | Python 3.10+ |
+| Опциональные PyPI | `geoip2`, `IP2Location`, `dnspython` (из `requirements-dns.txt`) |
+| Системные CLI | `whois`, `ping`, `traceroute`/`tracert`, `nslookup`, `nmap`, `tcpdump`, `tshark` |
+| Внешние сервисы | `ip-api.com`, RIR WHOIS, `crt.sh`, `speed.cloudflare.com` |
+
+После изменения зависимостей (`requirements-dns.txt`), добавления внешних API или системных утилит — перегенерируйте SBOM и закоммитьте оба файла:
 
 ```bash
 python3 tools/generate_sbom.py
+git diff -- sbom.cdx.json sbom.spdx.json
 ```
 
-- CI проверяет, что оба SBOM-файла актуальны относительно генератора.
+В CI (job **check**, Python 3.10) шаг **Ensure SBOM files are up to date** падает, если `sbom.*.json` не совпадают с выводом генератора.
 
 ## GitHub Actions (ручной запуск)
 

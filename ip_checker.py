@@ -2,7 +2,6 @@
 """
 IP Address Geolocation Checker for macOS
 Checks if IP addresses are in their expected geographic locations
-Локализованная версия / Localized version
 """
 
 import json
@@ -26,6 +25,8 @@ import signal
 
 import network_diag
 import pcap_diag
+import dns_diag
+import owasp_toolkit
 
 # Configuration
 SCRIPT_DIR = Path(__file__).parent
@@ -170,8 +171,9 @@ TRANSLATIONS = {
         "tools_nmap_interrupt_hint_win": "Stop nmap: Ctrl+C — return to this menu",
         "tools_nmap_interrupted": "nmap stopped — back to tools menu.",
         "tools_3": "3. nslookup  (this IP, system resolver)",
+        "tools_4": "4. OWASP Secure Headers (quick, built-in)",
         "tools_0": "0. Skip / back",
-        "tools_prompt": "Select (0-3): ",
+        "tools_prompt": "Select (0-4): ",
         "tools_running": "Running: ",
         "tools_done": "— done —",
         "tools_cmd_missing": "Command not found in PATH: ",
@@ -185,9 +187,11 @@ TRANSLATIONS = {
         "menu_body_enrich": "Configure enrichment API keys",
         "menu_body_diag": "Network diagnostics (trace monitor / speed test)",
         "menu_body_iface": "List local network interfaces (NIC parameters)",
+        "menu_body_dns": "DNS analysis (graph / subdomains)",
+        "menu_body_owasp": "OWASP toolkit (Amass / Nettacker / headers / WSTG)",
         "menu_body_exit": "Exit",
-        "menu_prompt_main": "Select option (0-9): ",
-        "menu_prompt_hint": "Enter the menu number (0–9) and press Enter.",
+        "menu_prompt_main": "Select option (0-11): ",
+        "menu_prompt_hint": "Enter the menu number (0–11) and press Enter.",
         "diag_menu_title": "Network diagnostics",
         "diag_opt_speed": "1. Quick speed test (ping + HTTP download/upload, Cloudflare)",
         "diag_opt_trace": "2. Multi-hop route latency monitor",
@@ -342,8 +346,9 @@ TRANSLATIONS = {
         "tools_nmap_interrupt_hint_win": "Остановить nmap: Ctrl+C — возврат в это меню",
         "tools_nmap_interrupted": "nmap остановлен — возврат в меню инструментов.",
         "tools_3": "3. nslookup  (этот IP, системный резолвер)",
+        "tools_4": "4. OWASP Secure Headers (быстро, встроенно)",
         "tools_0": "0. Пропуск / назад",
-        "tools_prompt": "Выберите (0-3): ",
+        "tools_prompt": "Выберите (0-4): ",
         "tools_running": "Запуск: ",
         "tools_done": "— готово —",
         "tools_cmd_missing": "Команда не найдена в PATH: ",
@@ -357,9 +362,11 @@ TRANSLATIONS = {
         "menu_body_enrich": "Настроить API ключи обогащения",
         "menu_body_diag": "Диагностика сети (трассировка / speed test)",
         "menu_body_iface": "Список сетевых интерфейсов (параметры NIC)",
+        "menu_body_dns": "DNS-анализ (граф / поддомены)",
+        "menu_body_owasp": "OWASP (Amass / Nettacker / headers / WSTG)",
         "menu_body_exit": "Выход",
-        "menu_prompt_main": "Выберите опцию (0-9): ",
-        "menu_prompt_hint": "Введите номер пункта меню (0–9) и нажмите Enter.",
+        "menu_prompt_main": "Выберите опцию (0-11): ",
+        "menu_prompt_hint": "Введите номер пункта меню (0–11) и нажмите Enter.",
         "diag_menu_title": "Диагностика сети",
         "diag_opt_speed": "1. Быстрый тест скорости (ping + HTTP загрузка/отдача, Cloudflare)",
         "diag_opt_trace": "2. Монитор задержки по хопам маршрута",
@@ -411,11 +418,13 @@ MAIN_MENU_ITEM_KEYS = (
     "menu_body_enrich",
     "menu_body_lang",
     "menu_body_help",
+    "menu_body_dns",
+    "menu_body_owasp",
 )
 
 
 def print_main_menu_lines() -> None:
-    """Print main menu: lines 1–9 match the digit you type; 0 exits."""
+    """Print main menu: lines 1–11 match the digit you type; 0 exits."""
     for i, body_key in enumerate(MAIN_MENU_ITEM_KEYS, start=1):
         print(f"{i}. {t(body_key)}")
     print(f"0. {t('menu_body_exit')}")
@@ -1273,6 +1282,7 @@ def offer_network_tools_menu(target_ip: str) -> None:
         print(f"{Colors.OKCYAN}{t('tools_1')}{Colors.ENDC}")
         print(f"{Colors.OKCYAN}{t('tools_2')}{Colors.ENDC}")
         print(f"{Colors.OKCYAN}{t('tools_3')}{Colors.ENDC}")
+        print(f"{Colors.OKCYAN}{t('tools_4')}{Colors.ENDC}")
         print(f"{Colors.OKCYAN}{t('tools_0')}{Colors.ENDC}")
         try:
             choice = input(f"{Colors.WARNING}{t('tools_prompt')}{Colors.ENDC}").strip()
@@ -1305,6 +1315,12 @@ def offer_network_tools_menu(target_ip: str) -> None:
             print(f"{Colors.OKCYAN}{t('tools_running')}{' '.join(cmd)}{Colors.ENDC}")
             run_external_tool(cmd)
             print(f"{Colors.OKGREEN}{t('tools_done')}{Colors.ENDC}")
+        elif choice == "4":
+            lang = CURRENT_LANGUAGE if CURRENT_LANGUAGE in ("en", "ru") else "en"
+            owasp_toolkit.set_context(ip=target_ip)
+            url = f"https://{target_ip}/"
+            rep = owasp_toolkit.check_secure_headers(url, lang=lang)
+            owasp_toolkit.print_secure_headers_report(rep, lang=lang)
         else:
             print(f"{Colors.WARNING}{t('tools_invalid')}{Colors.ENDC}")
 
@@ -1922,6 +1938,61 @@ def parse_cli_args():
         default=None,
         help="Optional tcpdump BPF filter expression (quoted if spaces).",
     )
+    parser.add_argument("--dns", metavar="DOMAIN", default=None, help="DNS graph crawl from domain (needs dnspython).")
+    parser.add_argument("--dns-depth", type=int, default=4, help="Max BFS depth for --dns (default: 4).")
+    parser.add_argument("--dns-max-domains", type=int, default=500, help="Max domains for --dns (default: 500).")
+    parser.add_argument("--dns-save", action="store_true", help="Save DNS session JSON to dns_sessions/.")
+    parser.add_argument("--dns-wordlist", metavar="FILE", default=None, help="Subdomain wordlist for --dns.")
+    parser.add_argument("--dns-crtsh", action="store_true", help="Passive subdomains from crt.sh for --dns.")
+    parser.add_argument("--dns-qps", type=float, default=20.0, help="Max DNS queries per second (default: 20).")
+    parser.add_argument("--dns-replay", metavar="FILE", default=None, help="Print summary for saved DNS session JSON.")
+    parser.add_argument("--dns-export", metavar="FILE", default=None, help="Export DNS session to HTML graph.")
+    parser.add_argument("--dns-pcap", metavar="FILE", default=None, help="Seed DNS crawl from DNS names in PCAP (tshark).")
+    parser.add_argument(
+        "--owasp-headers",
+        metavar="URL",
+        default=None,
+        help="Built-in Secure Headers check (OWASP-aligned, no extra install).",
+    )
+    parser.add_argument("--owasp-amass", metavar="DOMAIN", default=None, help="Run passive Amass enum (needs amass in PATH).")
+    parser.add_argument(
+        "--owasp-nettacker",
+        metavar="HOST",
+        default=None,
+        help="Run Nettacker port_scan (needs separate AGPL install).",
+    )
+    parser.add_argument("--owasp-wstg", action="store_true", help="Print WSTG checklist links.")
+    parser.add_argument(
+        "--owasp-pipeline",
+        action="store_true",
+        help="Run headers + optional Amass + WSTG (use with --owasp-domain / --owasp-ip).",
+    )
+    parser.add_argument("--owasp-ip", metavar="IP", default=None, help="Target IP for --owasp-pipeline.")
+    parser.add_argument("--owasp-domain", metavar="DOMAIN", default=None, help="Target domain for --owasp-pipeline / Amass.")
+    parser.add_argument(
+        "--owasp-nettacker-run",
+        action="store_true",
+        help="With --owasp-pipeline, also run Nettacker port_scan.",
+    )
+    parser.add_argument("--owasp-save", action="store_true", help="Save OWASP pipeline session to owasp_sessions/.")
+    parser.add_argument(
+        "--check-deps",
+        action="store_true",
+        help="Verify dependencies from dependencies.manifest.json and exit.",
+    )
+    parser.add_argument(
+        "--check-deps-group",
+        action="append",
+        dest="check_deps_groups",
+        default=None,
+        metavar="GROUP",
+        help="With --check-deps: minimal, dns, pcap, owasp, full, etc. (repeatable).",
+    )
+    parser.add_argument(
+        "--check-deps-hints",
+        action="store_true",
+        help="With --check-deps: print install hints from manifest.",
+    )
     return parser.parse_args()
 
 def save_results(results: List[Dict]) -> bool:
@@ -2151,6 +2222,7 @@ def check_single_ip(
         if not result.get('_abuse_shown'):
             fetch_and_print_abuse_contact(ip)
             result['_abuse_shown'] = True
+        owasp_toolkit.set_context(ip=ip)
         offer_network_tools_menu(ip)
 
     return result
@@ -2439,6 +2511,75 @@ def check_asn_operator(asn_input: str, database: Dict, auto_reclass: bool = Fals
     return results
 
 
+def _dns_enrich_ip_node(ip: str, node: Dict) -> None:
+    """Attach ip-api geo fields to DNS graph IP nodes."""
+    geo = get_ip_geolocation(ip)
+    if geo.get("success"):
+        node["geo_country"] = geo.get("country_code")
+        node["geo_country_name"] = geo.get("country")
+        node["isp"] = geo.get("isp")
+
+
+def handle_dns_cli(args) -> None:
+    """Non-interactive DNS graph crawl / replay / export."""
+    lang = CURRENT_LANGUAGE if CURRENT_LANGUAGE in ("en", "ru") else "en"
+    enrich = _dns_enrich_ip_node
+
+    if getattr(args, "dns_replay", None):
+        path = Path(str(args.dns_replay)).expanduser()
+        try:
+            session = dns_diag.load_session(path)
+            dns_diag.print_session_summary(session, lang=lang)
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            print(f"{Colors.FAIL}{dns_diag.msg(lang, 'load_fail', err=exc)}{Colors.ENDC}")
+        if getattr(args, "dns_export", None):
+            out = Path(str(args.dns_export)).expanduser()
+            try:
+                session = dns_diag.load_session(path)
+                out_path = dns_diag.export_html(session, out, lang=lang)
+                print(f"{Colors.OKGREEN}{dns_diag.msg(lang, 'html_ok', path=out_path)}{Colors.ENDC}")
+            except (OSError, ValueError, json.JSONDecodeError) as exc:
+                print(f"{Colors.FAIL}{dns_diag.msg(lang, 'html_fail', err=exc)}{Colors.ENDC}")
+        return
+
+    session: Dict = {}
+    if getattr(args, "dns_pcap", None):
+        session = dns_diag.crawl_from_pcap_seed(
+            Path(str(args.dns_pcap)).expanduser(),
+            getattr(args, "dns", None),
+            enrich_ip=enrich,
+            lang=lang,
+            max_depth=int(args.dns_depth),
+            max_domains=int(args.dns_max_domains),
+            qps=float(args.dns_qps),
+            wordlist=Path(args.dns_wordlist).expanduser() if getattr(args, "dns_wordlist", None) else None,
+        )
+    elif getattr(args, "dns", None):
+        session = dns_diag.crawl_dns(
+            str(args.dns),
+            max_depth=int(args.dns_depth),
+            max_domains=int(args.dns_max_domains),
+            qps=float(args.dns_qps),
+            use_crtsh=bool(getattr(args, "dns_crtsh", False)),
+            wordlist=Path(args.dns_wordlist).expanduser() if getattr(args, "dns_wordlist", None) else None,
+            enrich_ip=enrich,
+            lang=lang,
+        )
+    else:
+        return
+
+    if not session:
+        return
+    dns_diag.print_session_summary(session, lang=lang)
+    if getattr(args, "dns_save", False):
+        path = dns_diag.save_session(session)
+        print(f"{Colors.OKGREEN}{dns_diag.msg(lang, 'save_ok', path=path)}{Colors.ENDC}")
+    if getattr(args, "dns_export", None):
+        out = Path(str(args.dns_export)).expanduser()
+        out_path = dns_diag.export_html(session, out, lang=lang)
+        print(f"{Colors.OKGREEN}{dns_diag.msg(lang, 'html_ok', path=out_path)}{Colors.ENDC}")
+
+
 def handle_network_diag_cli(args) -> None:
     """Non-interactive trace monitor and/or speed test (no ASN database load)."""
     lang = CURRENT_LANGUAGE if CURRENT_LANGUAGE in ("en", "ru") else "en"
@@ -2715,12 +2856,40 @@ def run_cli_mode(args):
             if save_results(results):
                 print(f"{Colors.OKGREEN}✓ Results saved: {RESULTS_FILE}{Colors.ENDC}")
 
+def _run_check_deps_cli(args) -> None:
+    """Delegate to scripts/check_deps.py (same repo, no extra pip package)."""
+    script = Path(__file__).resolve().parent / "scripts" / "check_deps.py"
+    cmd: List[str] = [sys.executable, str(script)]
+    groups = getattr(args, "check_deps_groups", None) or ["minimal"]
+    for g in groups:
+        cmd.extend(["--group", g])
+    if getattr(args, "check_deps_hints", False):
+        cmd.append("--hints")
+    raise SystemExit(subprocess.run(cmd, check=False).returncode)
+
+
 def main():
     global CURRENT_LANGUAGE
     args = parse_cli_args()
 
+    if getattr(args, "check_deps", False):
+        _run_check_deps_cli(args)
+        return
+
     # Load saved language
     load_language_config()
+    dns_requested = bool(
+        getattr(args, "dns", None)
+        or getattr(args, "dns_replay", None)
+        or getattr(args, "dns_pcap", None)
+    )
+    owasp_requested = bool(
+        getattr(args, "owasp_headers", None)
+        or getattr(args, "owasp_amass", None)
+        or getattr(args, "owasp_nettacker", None)
+        or getattr(args, "owasp_wstg", False)
+        or getattr(args, "owasp_pipeline", False)
+    )
     diag_requested = bool(
         args.trace_monitor_host
         or args.speed_test
@@ -2730,7 +2899,7 @@ def main():
     )
 
     # First-time language: skip interactive prompt for standalone network CLI
-    if CURRENT_LANGUAGE is None and not diag_requested:
+    if CURRENT_LANGUAGE is None and not diag_requested and not dns_requested and not owasp_requested:
         select_language_menu()
     elif CURRENT_LANGUAGE is None:
         CURRENT_LANGUAGE = "en"
@@ -2739,6 +2908,15 @@ def main():
 
     if args.ip or args.ip_range or args.asn:
         run_cli_mode(args)
+        return
+
+    if dns_requested:
+        handle_dns_cli(args)
+        return
+
+    if owasp_requested:
+        lang = CURRENT_LANGUAGE if CURRENT_LANGUAGE in ("en", "ru") else "en"
+        owasp_toolkit.handle_owasp_cli(args, lang=lang)
         return
 
     if diag_requested:
@@ -2893,6 +3071,14 @@ def main():
         elif choice == "9":
             show_help()
 
+        elif choice == "10":
+            lang = CURRENT_LANGUAGE if CURRENT_LANGUAGE in ("en", "ru") else "en"
+            dns_diag.run_dns_menu(lang, enrich_ip=_dns_enrich_ip_node)
+
+        elif choice == "11":
+            lang = CURRENT_LANGUAGE if CURRENT_LANGUAGE in ("en", "ru") else "en"
+            owasp_toolkit.run_owasp_menu(lang)
+
         else:
             if CURRENT_LANGUAGE == "ru":
                 print(f"{Colors.FAIL}❌ Неверный выбор{Colors.ENDC}")
@@ -2973,6 +3159,12 @@ def show_help():
 
         print(f"{Colors.OKCYAN}9. Справка{Colors.ENDC}")
         print("   Этот экран подсказок по пунктам главного меню\n")
+
+        print(f"{Colors.OKCYAN}10. DNS-анализ{Colors.ENDC}")
+        print("   Обход DNS-графа, crt.sh, wordlist, HTML-экспорт (нужен dnspython)\n")
+
+        print(f"{Colors.OKCYAN}11. OWASP toolkit{Colors.ENDC}")
+        print("   Secure Headers (встроенно), Amass/Nettacker (опц.), WSTG-ссылки; см. docs/OWASP_INTEGRATION.md\n")
         print(f"{Colors.WHITE}CLI:{Colors.ENDC} --speed-test, --trace-monitor HOST,\n")
         print("           --trace-replay FILE [--trace-replay-delay SEC],\n")
         print(
@@ -2981,6 +3173,22 @@ def show_help():
         print(
             "           --pcap-capture IFACE --pcap-out FILE [--pcap-filter BPF] [--pcap-seconds N]\n",
         )
+        print(
+            "           --dns DOMAIN [--dns-crtsh] [--dns-wordlist FILE] [--dns-save] [--dns-export out.html]\n",
+        )
+        print(
+            "           --owasp-headers URL | --owasp-amass DOMAIN | --owasp-nettacker HOST\n",
+        )
+        print(
+            "           --owasp-pipeline [--owasp-ip IP] [--owasp-domain DOM] [--owasp-save]\n",
+        )
+        print(
+            "           --check-deps [--check-deps-group dns] [--check-deps-hints]\n",
+        )
+        print(
+            "  Установка: ./scripts/install-deps.sh full  |  .\\scripts\\install-deps.ps1 -Profile full\n",
+        )
+        print("  SBOM: docs/SBOM.md · sbom.cdx.json\n")
         
         print(f"{Colors.OKGREEN}✓ При обнаружении несоответствия:{Colors.ENDC}")
         print("  - Система предложит переклассифицировать ASN")
@@ -3026,6 +3234,28 @@ def show_help():
         print(
             "           --pcap-capture IFACE --pcap-out FILE [--pcap-filter BPF] [--pcap-seconds N]\n",
         )
+        print(
+            "           --dns DOMAIN [--dns-crtsh] [--dns-wordlist FILE] [--dns-save] [--dns-export out.html]\n",
+        )
+        print(
+            "           --owasp-headers URL | --owasp-amass DOMAIN | --owasp-nettacker HOST\n",
+        )
+        print(
+            "           --owasp-pipeline [--owasp-ip IP] [--owasp-domain DOM] [--owasp-save]\n",
+        )
+        print(
+            "           --check-deps [--check-deps-group dns] [--check-deps-hints]\n",
+        )
+        print(
+            "  Install: ./scripts/install-deps.sh full  |  .\\scripts\\install-deps.ps1 -Profile full\n",
+        )
+        print("  SBOM: docs/SBOM.md · sbom.cdx.json\n")
+
+        print(f"{Colors.OKCYAN}10. DNS analysis{Colors.ENDC}")
+        print("   DNS graph crawl, crt.sh, HTML export (pip install dnspython)\n")
+
+        print(f"{Colors.OKCYAN}11. OWASP toolkit{Colors.ENDC}")
+        print("   Secure Headers (built-in), optional Amass/Nettacker, WSTG links; see docs/OWASP_INTEGRATION.md\n")
         
         print(f"{Colors.OKGREEN}✓ When mismatch is detected:{Colors.ENDC}")
         print("  - System offers to reclassify ASN")
