@@ -2,13 +2,25 @@
 __pycache__/
 *.py[cod]
 *$py.class
+lib/__pycache__/
 
-# Local runtime/config artifacts
+# Local runtime / data (see data/)
+data/cache/
+data/config/.language_config
+data/config/.enrichment_config.json
+data/scan_results.json
+data/sessions/
+data/dns_graph/
+data/pcap/
+
+# Legacy root paths (migrated to data/ on first run)
+.cache/
 .language_config
-scan_results.json
 .enrichment_config.json
+scan_results.json
 trace_sessions/
 dns_sessions/
+ptr_sessions/
 dns_graph/
 owasp_sessions/
 network capture/

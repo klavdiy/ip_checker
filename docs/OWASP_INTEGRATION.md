@@ -45,6 +45,13 @@ flowchart LR
 # Built-in Secure Headers (no extra install)
 python3 fnkit.py --owasp-headers https://example.com
 
+# TLS on :443 (stdlib ssl — cert expiry, cipher, SSLv3/TLS1.0/1.1 probe)
+python3 fnkit.py --owasp-tls example.com
+
+# Amass + dangling CNAME / takeover fingerprints
+python3 fnkit.py --owasp-amass example.com --owasp-takeover
+python3 fnkit.py --owasp-takeover-file subdomains.txt
+
 # WSTG pointers only (links)
 python3 fnkit.py --owasp-wstg
 
@@ -63,10 +70,12 @@ python3 fnkit.py --owasp-pipeline --owasp-domain example.com --owasp-nettacker-r
 1. Accept authorized-use disclaimer (once per process).
 2. Confirm IP/domain (defaults from last IP check).
 3. **Secure Headers** on `https://<domain>/` if URL/domain known.
-4. Optional **Amass** passive enum → subdomain list sample.
-5. Optional **Nettacker** `port_scan` on IP or domain (AGPL warning).
-6. **WSTG** checklist printed with owasp.org links.
-7. Save combined JSON under `owasp_sessions/`.
+4. **TLS** on host:443 (cert, negotiated cipher/version, legacy protocol probes).
+5. Optional **Amass** passive enum → subdomain list sample.
+6. **Subdomain takeover** on Amass hosts (CNAME suffix + HTTP body fingerprints; needs `dnspython`).
+7. Optional **Nettacker** `port_scan` on IP or domain (AGPL warning).
+8. **WSTG** checklist printed with owasp.org links.
+9. Save combined JSON under `owasp_sessions/`.
 
 ## GitHub Actions sketch
 

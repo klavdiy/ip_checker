@@ -10,7 +10,7 @@ This repository remains **MIT** licensed. OWASP projects listed below are **not 
 | [Amass](https://github.com/owasp-amass/amass) | Passive subdomain / asset discovery | Apache-2.0 | Subprocess `amass enum -passive` when binary is in `PATH` |
 | [Nettacker](https://github.com/OWASP/Nettacker) | Optional port/service scan | **AGPL-3.0** | Subprocess only; user installs; default module `port_scan` |
 | [WSTG](https://github.com/OWASP/wstg) | Testing methodology | CC-BY-SA-4.0 | Short checklist titles + links; **no substantial copy** of guide text |
-| [Secure Headers](https://github.com/OWASP/www-project-secure-headers) | HTTP header guidance | Apache-2.0 (project site) | Built-in HEAD/GET checks for common header **names** (public facts) |
+| [Secure Headers](https://github.com/OWASP/www-project-secure-headers) | HTTP header guidance | Apache-2.0 (project site) | Built-in HEAD/GET checks: presence for common headers; minimal value checks for HSTS (`max-age` ≥ 1y), CSP (no `unsafe-inline`/`unsafe-eval`), `X-Frame-Options` (`DENY` vs `SAMEORIGIN`) |
 
 ## License compatibility with MIT (this repo)
 

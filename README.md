@@ -33,7 +33,7 @@
 | № | Раздел | Что внутри |
 |---|--------|------------|
 | [**0**](#пункт-0--выход) | Выход | Завершение программы |
-| [**1**](#пункт-1--проверить-ip) | IP | Гео, mismatch, WHOIS, abuse, [инструменты после IP](#меню-после-проверки-ip) |
+| [**1**](#пункт-1--проверить-ip) | IP | Гео, **egress/NAT**, **BGP**, **passive DNS**, mismatch, WHOIS, abuse, [инструменты](#меню-после-проверки-ip) |
 | [**2**](#пункт-2--диапазон-ip) | Диапазон | До 10 IP, сводка, сохранение отчёта |
 | [**3**](#пункт-3--asn-оператора) | ASN | Пулы из БД или разведка неизвестного ASN |
 | [**4**](#пункт-4--диагностика-сети) | Диагностика | Speed-test, trace, PCAP — см. [подменю 4](#подменю-4--диагностика-сети) |
@@ -164,24 +164,30 @@ FieldNet Kit (FNkit)
 
 ```text
 fieldnetkit/
-├── fnkit.py                 # Главное приложение
+├── fnkit.py                 # Точка входа CLI
 ├── fnkit.sh / fnkit.ps1     # Обёртки запуска
-├── asn_database.json        # Локальная модель ASN / пулов / expected country
-├── network_diag.py          # Speed-test, trace monitor, NIC list
-├── pcap_diag.py             # PCAP capture / show / verify
-├── dns_diag.py              # DNS-граф, crt.sh, HTML export
-├── owasp_toolkit.py         # Secure Headers, Amass, Nettacker, WSTG
-├── dependencies.manifest.json
-├── sbom.cdx.json / sbom.spdx.json
-├── scripts/                 # check_deps, install-deps
+├── paths.py                 # Пути к data/ и lib/
+├── lib/                     # Модули Python
+│   ├── network_diag.py      # Speed-test, trace monitor, NIC
+│   ├── pcap_diag.py         # PCAP capture / show / verify
+│   ├── dns_diag.py          # DNS-граф, crt.sh, HTML export
+│   ├── owasp_toolkit.py     # Secure Headers, Amass, TLS, takeover
+│   ├── pdns_lookup.py       # Passive DNS
+│   ├── ip_egress_check.py   # Tor / proxy / datacenter
+│   └── ptr_scan.py          # PTR range scan
+├── data/                    # Базы и артефакты рантайма
+│   ├── asn_database.json    # ASN / пулы / expected country
+│   ├── scan_results.json    # при -s/--save (gitignore)
+│   ├── config/              # .language_config, enrichment keys
+│   ├── sessions/            # owasp, dns, trace, ptr (gitignore)
+│   ├── dns_graph/           # HTML DNS (gitignore)
+│   ├── pcap/                # PCAP (gitignore)
+│   └── cache/               # Tor list cache (gitignore)
+├── scripts/                 # check_deps, validate_asn_db, install-deps
+├── tools/                   # generate_sbom.py
 ├── docs/                    # SBOM, OWASP
-├── trace_sessions/          # JSON трасс (gitignore)
-├── dns_sessions/ dns_graph/ # DNS (gitignore)
-├── owasp_sessions/          # OWASP (gitignore)
-├── network capture/         # PCAP (gitignore)
-├── scan_results.json        # при -s/--save
-├── .language_config
-└── .enrichment_config.json  # ключи MaxMind / IP2Location
+├── dependencies.manifest.json
+└── sbom.cdx.json / sbom.spdx.json
 ```
 
 ---
@@ -215,13 +221,13 @@ pip install -r requirements-dns.txt -r requirements-optional.txt
 
 | № | Название | Кратко |
 |---|----------|--------|
-| **1** | Проверить IP | Гео + сверка с `asn_database.json`, WHOIS/abuse, опционально инструменты |
+| **1** | Проверить IP | Гео + **egress** (Tor/proxy/hosting), BGP, passive DNS, сверка с БД, WHOIS/abuse, инструменты |
 | **2** | Диапазон IP | До **10** IP подряд (интерактивно) |
 | **3** | ASN | Проверка пулов из БД или разведка неизвестного ASN |
 | **4** | Диагностика сети | Speed-test, trace monitor, PCAP |
 | **5** | Интерфейсы | Список NIC из ОС |
 | **6** | Обновить базу | Метаданные БД (см. ограничения) |
-| **7** | Enrichment keys | MaxMind / IP2Location |
+| **7** | Enrichment keys | MaxMind / IP2Location / VirusTotal |
 | **8** | Язык | RU / EN |
 | **9** | Справка | Краткие подсказки в TUI |
 | **10** | DNS | Граф, crt.sh, HTML, PCAP→DNS |
@@ -240,13 +246,30 @@ pip install -r requirements-dns.txt -r requirements-optional.txt
 
 ### Назначение
 
-Сверить **фактическую** геолокацию IP (ip-api) с **ожидаемой** страной из локальной базы для совпавшего ASN/пула. Полезно для: VPN/CDN, ошибок CMDB, abuse-эскалации, полевой проверки «тот ли это оператор».
+Сверить **фактическую** геолокацию IP (ip-api) с **ожидаемой** страной из локальной базы для совпавшего ASN/пула, с **текущим BGP origin** (Team Cymru) и с **passive / historical DNS** (кто ещё «сидел» на этом IP, как менялся origin). Статический `asn_database.json` и текущая geo не видят ротацию адресов — для этого:
+
+| Источник | Ключ | Что даёт |
+|----------|------|----------|
+| **RIPE Stat** | не нужен | `dns-chain` (текущие PTR/forward), `routing-history` (смена origin ASN по префиксам) |
+| **VirusTotal** | меню **7** или `VIRUSTOTAL_API_KEY` | Исторические hostname → IP (resolutions) |
+| **SecurityTrails** | `SECURITYTRAILS_API_KEY` в `.enrichment_config.json` | История A-записей на IP (опционально) |
+
+**Egress / NAT** (ответ «за NAT или чистый IP?») — сразу после geo:
+
+| Сигнал | Источник |
+|--------|----------|
+| `proxy` / `hosting` / `mobile` | ip-api (в том же запросе, что и geo) |
+| Tor exit | [check.torproject.org](https://check.torproject.org/torbulkexitlist) (кэш в `.cache/`, ~6 ч) |
+| `bogon` | ipinfo.io (опционально `IPINFO_TOKEN`) |
+| ISP vs datacenter ASN | эвристика по имени org/ISP/AS |
+
+Полезно для: VPN/CDN, shared hosting, компрометаций, ошибок CMDB, abuse-эскалации.
 
 ### Как пользоваться (интерактивно)
 
 1. Главное меню → **`1`**
 2. Введите IPv4/IPv6 (например `8.8.8.8`). **`0`** — отмена
-3. Читайте вывод: match / mismatch / «не в базе»
+3. Читайте вывод: match / mismatch / «не в базе», блок **BGP origin** (ASN, префикс, совпадение с БД и geo API)
 4. При mismatch — предложение **переклассифицировать** ASN (`y`/`n`)
 5. Показывается **abuse** из WHOIS (с дораскрытием handle)
 6. Опционально — **меню инструментов** (nmap, traceroute, nslookup, Secure Headers)
@@ -303,7 +326,7 @@ Save this report to scan_results.json? (y/n): n
 Additional network tools (checked IP): 8.8.8.8
 1. nmap (run with -A -T4)
 …
-Select (0-4): 0
+Select (0-5): 0
 ```
 
 ### CLI
@@ -312,6 +335,7 @@ Select (0-4): 0
 ./fnkit.sh -i 83.1.1.1
 python3 fnkit.py -i 195.20.1.1 --auto-reclass
 python3 fnkit.py -i 195.20.1.1 --auto-reclass --quiet -s
+python3 fnkit.py -i 8.8.8.8 --no-bgp          # без live BGP (быстрее)
 ```
 
 | Флаг | Описание |
@@ -320,6 +344,12 @@ python3 fnkit.py -i 195.20.1.1 --auto-reclass --quiet -s
 | `-s` / `--save` | Запись в `scan_results.json` |
 | `--auto-reclass` | Без интерактивных `y/n` при переклассификации |
 | `--quiet` | Только с `--auto-reclass` — минимум вывода |
+| `--bgp` | Включить live BGP origin (Team Cymru); по умолчанию **вкл.** для `-i` / `-a` |
+| `--no-bgp` | Отключить BGP lookup (не вызывать `whois -h whois.cymru.com`) |
+| `--pdns` | Passive/historical DNS; по умолчанию **вкл.** для `-i` / `-a` |
+| `--no-pdns` | Без RIPE Stat / VirusTotal passive DNS |
+| `--egress` | Tor / proxy / hosting / bogon; по умолчанию **вкл.** для `-i` / `-a` |
+| `--no-egress` | Без проверки egress/NAT |
 
 ### Неизвестный IP
 
@@ -355,14 +385,14 @@ Add this information to the database? (y/n):
 
 ### Назначение
 
-Пакетная проверка нескольких адресов подряд из диапазона.
+Пакетная проверка нескольких адресов подряд из диапазона, либо **массовый PTR-обход** (reverse DNS с rate-limit) для картины инфраструктуры.
 
 ### Как пользоваться
 
 1. Меню → **`2`**
 2. **Start IP** и **End IP**
-3. Сканируется до **10** адресов от начала диапазона (шаг +1)
-4. Общая **сводка** и предложение сохранить отчёт
+3. Режим: **`1`** — geo по БД (до **10** IP), **`2`** — PTR sweep (до **256** IP, rate-limit, по умолчанию 10 qps)
+4. Сводка и опциональное сохранение (`ptr_sessions/*.json` для режима 2)
 
 ### Пример вывода
 
@@ -391,14 +421,24 @@ Save this report to scan_results.json? (y/n):
 ```bash
 ./fnkit.sh -r 83.0.0.1 83.0.0.255 --max-ips 20 -s
 python3 fnkit.py --range 10.0.0.1 10.0.0.50 --max-ips 256
+python3 fnkit.py -r 10.0.0.1 10.0.0.20 --bgp --max-ips 10   # BGP на каждый IP (медленнее)
+# Массовый PTR (без geo-цикла):
+python3 fnkit.py -r 192.168.1.1 192.168.1.50 --ptr-scan --ptr-qps 15 --max-ips 50 --ptr-save
 ```
 
 | Флаг | По умолчанию | Описание |
 |------|--------------|----------|
 | `-r` START END | — | Диапазон |
 | `--max-ips` | 256 | Лимит в CLI (в меню жёстко 10) |
+| `--bgp` | выкл. для `-r` | Team Cymru lookup на **каждый** IP диапазона |
+| `--no-bgp` | — | Явно отключить BGP (для `-i` / `-a` по умолчанию BGP включён) |
+| `--pdns` | выкл. для `-r` | Passive DNS на каждый IP (RIPE Stat + VT при ключе) |
+| `--no-pdns` | — | Без passive DNS |
+| `--ptr-scan` | — | Только PTR-обход диапазона (не geo-цикл) |
+| `--ptr-qps` | 10 | Лимит PTR-запросов/сек |
+| `--ptr-save` | — | JSON в `ptr_sessions/` |
 
-> В интерактивном меню лимит **10 IP** задан в коде; в CLI — `--max-ips`.
+> В интерактивном меню: режим **1** — до 10 IP geo; режим **2** — до 256 PTR. В CLI `--max-ips` задаёт лимит для обоих режимов. BGP/pDNS/egress для обычного `-r` выключены по умолчанию.
 
 ---
 
@@ -445,7 +485,13 @@ Add this ASN to the local database using the data above? (y/n):
 ```bash
 ./fnkit.sh -a AS12389 -s
 python3 fnkit.py --asn 20485 --save
+python3 fnkit.py -a AS12389 --no-bgp    # без BGP на пробных IP из пулов
 ```
+
+| Флаг | Описание |
+|------|----------|
+| `--bgp` | По умолчанию **вкл.** — live origin для пробных IP из пулов |
+| `--no-bgp` | Только гео/WHOIS без Team Cymru |
 
 ---
 
@@ -466,9 +512,12 @@ python3 fnkit.py --asn 20485 --save
 
 ### 4.1 — Speed-test
 
-**Что делает:** медиана RTT ping к `1.1.1.1`, ориентировочный download/upload через `speed.cloudflare.com`.
+**Что делает:** медиана RTT ping к `1.1.1.1`, ориентировочный download/upload через `speed.cloudflare.com` (**4 параллельных HTTP-потока** по умолчанию — честнее на каналах >100 Mbps).
 
 ```bash
+python3 fnkit.py --speed-test
+python3 fnkit.py --speed-test --speed-streams 6
+export FNKIT_SPEED_STREAMS=8
 python3 fnkit.py --speed-test
 ```
 
@@ -488,7 +537,7 @@ Results are approximate; ISP routing may vary.
 **Что делает:**
 
 1. `traceroute`/`tracert` до цели → список hop IPv4  
-2. Периодический `ping` по каждому хопу  
+2. **Параллельный** `ping` всех хопов каждый раунд (MTR-style — не последовательно)  
 3. В **TTY** — таблица в одном окне; без TTY — накопительный лог  
 4. Клавиши: **`p`** пауза, **`q`** или **Ctrl+C** стоп  
 5. После остановки — предложение сохранить JSON в `trace_sessions/` (формат `fnkit_trace_v1`; читаются и старые `ip_checker_trace_v1`)
@@ -511,7 +560,7 @@ python3 fnkit.py --trace-monitor 8.8.8.8 --trace-interval 2.5 --trace-max-hops 2
 ```text
 Route latency monitor → 8.8.8.8
 Hop RTT / loss by hop  (× = timeout / loss in sparkline)
- interval 3.0s  |  rediscover every 45 rounds
+ interval 3.0s  |  rediscover every 45 rounds  |  parallel ping (MTR-style)
 Round 12
  #   Address         RTT ms   Loss    Trend (RTT)
  1   192.168.1.1     1.2      0%      ▂▃▅
@@ -609,7 +658,7 @@ utun4              tunnel      up      1380   —                   10.8.0.2
 
 ### Назначение
 
-Обслуживание **метаданных** `asn_database.json`: `last_updated`, счётчики ASN/пулов, сброс напоминаний.
+Обслуживание **`asn_database.json`**: дедупликация ASN (одна строка на номер), удаление грубых пулов (шире `/20`), пересчёт `total_asns` / `total_ip_pools`, отчёт по ASN без рабочих префиксов.
 
 ### Автоматическое напоминание (30 / 7 дней)
 
@@ -617,16 +666,31 @@ utun4              tunnel      up      1380   —                   10.8.0.2
 - **`y`** — обновление метаданных  
 - **`n`** — отложить на **7 дней** (`next_update_prompt_after`)
 
-> **Важно:** пункт **не** подтягивает префиксы из RIR автоматически. ASN/пулы по-прежнему ведутся вручную или через flow переклассификации / unknown IP.
+> **Важно:** пункт **не** подтягивает все префиксы из RIR автоматически. Новые `/24+` — через flow **unknown IP / unknown ASN** с BGP (Team Cymru) или `collect_bgp_pools_for_asn`.
 
 ### Как пользоваться
 
-Меню → **`6`** — сразу выполняется `perform_database_update`.
+| Способ | Действие |
+|--------|----------|
+| Меню **`6`** | `perform_database_update` → dedupe + prune + validate + save |
+| CLI | `python3 fnkit.py --maintain-db` |
+| Скрипт / CI | `python3 scripts/validate_asn_db.py` (только проверка), `--fix` (запись) |
+
+**Зависимые модули:** только **`fnkit.py`** читает `asn_database.json` (через `load_database()`). `dns_diag`, `owasp_toolkit`, `network_diag` и др. базу не кэшируют — после правки JSON или меню **6** достаточно перезагрузки в том же процессе (`load_database()` при старте или пункт **6** в меню).
 
 **Пример вывода:**
 
 ```text
 Updating database...
+
+ASN database maintenance
+  Duplicate ASN rows merged: 0
+  Coarse pools removed (wider than /20): 111
+  ASN rows: 44
+  Acceptable pools (match-ready): 18
+  ASN rows without match-ready pools: 26
+    → refresh via menu IP check / unknown ASN + BGP, or: python3 fnkit.py --maintain-db
+  Schema/metadata: OK
 Database updated
 ```
 
@@ -642,7 +706,7 @@ Database update check is required - last check was 45 days ago. Update now? (y/n
 
 ### Назначение
 
-Сравнение гео **ip-api** (primary) с **MaxMind** и **IP2Location** при наличии ключей. Ключи в `.enrichment_config.json` (не коммитить).
+Сравнение гео **ip-api** (primary) с **MaxMind** и **IP2Location** при наличии ключей. Дополнительно: **VirusTotal API key** (пункт **3**) для passive DNS hostname history. Ключи в `.enrichment_config.json` (не коммитить); для VT также `VIRUSTOTAL_API_KEY` в окружении.
 
 ### Подменю
 
@@ -808,6 +872,8 @@ python3 fnkit.py --dns-pcap "network capture/cap.pcap" --dns example.com --dns-s
 |---|----------|
 | **1** | Guided pipeline (контекст → headers → Amass → Nettacker? → WSTG) |
 | **2** | Secure Headers (встроенный HTTP) |
+| **8** | TLS (сертификат, cipher, SSLv3/TLS1.0/1.1 probe; stdlib `ssl`) |
+| **9** | Subdomain takeover (CNAME → GitHub/S3/Heroku/…, ~50 отпечатков; `dnspython`) |
 | **3** | Amass passive (нужен `amass` в PATH) |
 | **4** | Nettacker port_scan (AGPL, отдельная установка) |
 | **5** | WSTG checklist (только ссылки) |
@@ -815,7 +881,7 @@ python3 fnkit.py --dns-pcap "network capture/cap.pcap" --dns example.com --dns-s
 | **7** | Legal notice |
 | **0** | Назад |
 
-Перед пунктами 1–6 (кроме 7) — **disclaimer** authorized use.
+Перед пунктами 1–6, 8–9 (кроме 7) — **disclaimer** authorized use.
 
 После проверки IP в меню **11** подставляется контекст **IP** из последней проверки.
 
@@ -823,21 +889,23 @@ python3 fnkit.py --dns-pcap "network capture/cap.pcap" --dns example.com --dns-s
 
 ```bash
 python3 fnkit.py --owasp-headers https://example.com
-python3 fnkit.py --owasp-amass example.com --owasp-save
+python3 fnkit.py --owasp-tls example.com
+python3 fnkit.py --owasp-amass example.com --owasp-takeover --owasp-save
+python3 fnkit.py --owasp-takeover-file hosts.txt
 python3 fnkit.py --owasp-wstg
 python3 fnkit.py --owasp-pipeline --owasp-domain example.com --owasp-ip 203.0.113.10 --owasp-save
 python3 fnkit.py --owasp-pipeline --owasp-domain example.com --owasp-nettacker-run --owasp-save
 ```
 
-**Пример вывода (11.2 Secure Headers):**
+**Пример вывода (11.2 Secure Headers):** для HSTS, CSP и `X-Frame-Options` проверяются значения (не только наличие): HSTS `max-age` ≥ 31536000, CSP без `unsafe-inline`/`unsafe-eval`, `X-Frame-Options` — `DENY` (ok) или `SAMEORIGIN` (предупреждение).
 
 ```text
 Secure Headers report
-URL: https://example.com/
-  [+] strict-transport-security: max-age=31536000; includeSubDomains
+URL: https://weak.example/
+  [-] strict-transport-security: max-age=1 (need >= 31536000) — misconfiguration (severity: high)
+  [-] content-security-policy: contains unsafe-inline — misconfiguration (severity: high)
+  [!] x-frame-options: SAMEORIGIN (prefer DENY) (severity: medium)
   [+] x-content-type-options: nosniff
-  [-] content-security-policy (severity: high)
-  [-] x-frame-options (severity: medium)
 ```
 
 **Пример (11.5 WSTG):**
@@ -849,7 +917,27 @@ WSTG checklist (links only)
   WSTG-CONF-02 Review security headers and transport …
 ```
 
-**Пример (11.1 pipeline):** последовательно headers → опционально Amass → WSTG → JSON в `owasp_sessions/`.
+**Пример (11.8 TLS):**
+
+```text
+TLS report
+Target: example.com:443 (SNI: example.com)
+  [+] certificate trust: chain verified
+  [+] negotiated protocol: TLSv1.3
+  [+] negotiated cipher: TLS_AES_256_GCM_SHA384
+  [+] certificate subject: CN=example.com; issuer=...
+  [+] certificate expiry: 120 days left
+```
+
+**Пример (11.9 takeover, после Amass):**
+
+```text
+Subdomain takeover (dangling CNAME)
+Checked 87 hosts, CNAME on 12, suspects: 1
+  [!] dev.example.com → foo.github.io (GitHub Pages): HTTP fingerprint: there isn't a github pages site here
+```
+
+**Пример (11.1 pipeline):** headers → TLS → Amass → **takeover по списку Amass** → WSTG → JSON в `owasp_sessions/`.
 
 Подробнее: [docs/OWASP_INTEGRATION.md](docs/OWASP_INTEGRATION.md).
 
@@ -865,6 +953,7 @@ WSTG checklist (links only)
 | 2 | `traceroute`/`tracert` до 8.8.8.8 (≤20 хопов) |
 | 3 | `nslookup` проверяемого IP |
 | 4 | OWASP Secure Headers (быстро) |
+| 5 | TLS check (:443, stdlib ssl) |
 | 0 | Пропустить |
 
 **Пример (nmap):**
@@ -873,7 +962,7 @@ WSTG checklist (links only)
 Running: nmap -A -T4 8.8.8.8
 … (вывод nmap) …
 — done —
-Select (0-4):
+Select (0-5):
 ```
 
 > **Authorized use:** nmap, DNS wordlist, Amass, Nettacker — только для целей, на которые у вас есть разрешение.
@@ -933,7 +1022,17 @@ Workflow **Manual Run** (`.github/workflows/manual-run.yml`):
 | `--max-ips` | Geo | Лимит IP в диапазоне (default 256) |
 | `--auto-reclass` | Geo | Авто-переклассификация |
 | `--quiet` | Geo | С `--auto-reclass` |
-| `--speed-test` | Diag | ICMP + Cloudflare HTTP |
+| `--bgp` | Geo | Live BGP origin через Team Cymru (`whois -h whois.cymru.com " -v IP"`). По умолчанию: **вкл.** для `-i` / `-a`, **выкл.** для `-r`; с `--bgp` — вкл. и для диапазона |
+| `--no-bgp` | Geo | Не запрашивать BGP origin (взаимоисключающий с `--bgp`) |
+| `--pdns` | Geo | Passive DNS: RIPE Stat dns-chain + routing-history; VT/ST при ключах. По умолчанию как `--bgp` |
+| `--no-pdns` | Geo | Без passive/historical DNS |
+| `--egress` | Geo | Tor exit list + ip-api proxy/hosting/mobile + ipinfo bogon. По умолчанию как `--bgp` |
+| `--no-egress` | Geo | Без egress/NAT проверки |
+| `--ptr-scan` | Geo | Bulk PTR для `-r` (rate-limit `--ptr-qps`) |
+| `--ptr-qps` | Geo | PTR queries/sec (default 10) |
+| `--ptr-save` | Geo | Сохранить в `ptr_sessions/` |
+| `--speed-test` | Diag | ICMP + Cloudflare HTTP (parallel streams) |
+| `--speed-streams N` | Diag | Число HTTP-потоков для speed-test (default 4) |
 | `--trace-monitor HOST` | Diag | Монитор маршрута |
 | `--trace-interval SEC` | Diag | Интервал ping (default 3) |
 | `--trace-max-hops N` | Diag | Хопы traceroute (default 30) |
@@ -958,6 +1057,9 @@ Workflow **Manual Run** (`.github/workflows/manual-run.yml`):
 | `--dns-export FILE` | DNS | HTML-граф |
 | `--dns-pcap FILE` | DNS | Seed из PCAP |
 | `--owasp-headers URL` | OWASP | Secure Headers |
+| `--owasp-tls HOST` | OWASP | TLS на :443 (cert, cipher, legacy protocols) |
+| `--owasp-takeover` | OWASP | После `--owasp-amass`: CNAME + HTTP-отпечатки |
+| `--owasp-takeover-file FILE` | OWASP | Список FQDN для takeover-проверки |
 | `--owasp-amass DOMAIN` | OWASP | Amass passive |
 | `--owasp-nettacker HOST` | OWASP | Nettacker scan |
 | `--owasp-wstg` | OWASP | Чеклист WSTG |
@@ -984,7 +1086,22 @@ Workflow **Manual Run** (`.github/workflows/manual-run.yml`):
       "ip": "8.8.8.8",
       "matches": [{ "asn": "AS15169", "expected_country": "US", "pool": "8.0.0.0/8" }],
       "mismatches": [],
-      "geo_data": { "country_code": "US", "country": "United States" }
+      "geo_data": { "country_code": "US", "country": "United States" },
+      "bgp_origin": {
+        "success": true,
+        "asn": "AS15169",
+        "bgp_prefix": "8.8.8.0/24",
+        "registry": "arin",
+        "matches_db": true,
+        "matches_geo": true,
+        "source": "team-cymru"
+      },
+      "passive_dns": {
+        "success": true,
+        "ptr_names": ["dns.google"],
+        "resolutions": [{ "hostname": "example.com", "last_seen": "2024-01-15", "source": "virustotal" }],
+        "rotation_signals": ["Multiple origin ASNs in routing history (3) — possible prefix re-homing"]
+      }
     }
   ],
   "mismatches_found": 0
@@ -998,9 +1115,20 @@ Workflow **Manual Run** (`.github/workflows/manual-run.yml`):
   "format": "fnkit_trace_v1",
   "target": "8.8.8.8",
   "capture_iface": "en0",
-  "rounds": [ { "round": 1, "hops": [ { "hop": 1, "ip": "192.168.1.1", "rtt_ms": 1.2 } ] } ]
+  "rounds": [
+    {
+      "n": 1,
+      "t": "2026-05-19T12:00:00+00:00",
+      "hops": [[1, "192.168.1.1"], [2, "10.0.0.1"]],
+      "rtt": { "1": 1.2, "2": null },
+      "sent": { "1": 1, "2": 1 },
+      "ok": { "1": 1, "2": 0 }
+    }
+  ]
 }
 ```
+
+Поля `sent` / `ok` — кумулятивные счётчики ping на конец раунда (для колонки Loss при `--trace-replay`). Старые сессии без них воспроизводят loss эвристически по `rtt`.
 
 Legacy: `"format": "ip_checker_trace_v1"` — тоже читается.
 
@@ -1046,11 +1174,15 @@ Legacy: `"format": "ip_checker_trace_v1"` — тоже читается.
       "asn": "AS12389",
       "owner": "Example ISP",
       "expected_country": "GB",
-      "ip_pools": ["83.0.0.0/8"]
+      "ip_pools": ["89.1.2.0/24", "89.1.3.0/24"]
     }
   ]
 }
 ```
+
+При **добавлении ASN** (меню unknown ASN / unknown IP) пулы собираются из WHOIS `route:` (RIPE inverse) и live BGP-префикса Team Cymru по probe IP. Агрегаты **шире /20** (`/8`, `/16` …) не записываются и **не участвуют в match** — старые `/8` в базе игнорируются до пересбора префиксов.
+
+В `asn_data` допускается **только одна строка на номер ASN**; при загрузке дубликаты сливаются. Если у одного AS были разные `expected_country`, в match при равной длине префикса приоритет у страны geo API (и BGP origin).
 
 ---
 

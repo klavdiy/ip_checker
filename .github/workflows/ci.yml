@@ -28,17 +28,21 @@ jobs:
         run: pip install -r requirements-dns.txt -r requirements-optional.txt
 
       - name: Compile bytecode
-        run: python -m compileall -q fnkit.py network_diag.py pcap_diag.py dns_diag.py owasp_toolkit.py scripts/check_deps.py tools/generate_sbom.py
+        run: python -m compileall -q fnkit.py paths.py lib scripts tools
 
       - name: CLI help (argparse loads)
         run: python fnkit.py -h
 
       - name: Import modules
-        run: python -c "import fnkit; import network_diag; import pcap_diag; import dns_diag; import owasp_toolkit"
+        run: python -c "import fnkit; import paths; paths.ensure_lib_path(); import network_diag, pcap_diag, dns_diag, owasp_toolkit, subdomain_takeover"
 
       - name: Check minimal dependencies (manifest)
         if: matrix.python-version == '3.10'
         run: python scripts/check_deps.py --group minimal --no-fail
+
+      - name: Validate ASN database schema
+        if: matrix.python-version == '3.10'
+        run: python scripts/validate_asn_db.py
 
       - name: Regenerate SBOM files
         if: matrix.python-version == '3.10'

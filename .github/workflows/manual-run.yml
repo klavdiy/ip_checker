@@ -134,8 +134,8 @@ jobs:
           eval "${run_cmd}"
 
       - name: Upload scan results artifact
-        if: always() && hashFiles('scan_results.json') != ''
+        if: always() && hashFiles('data/scan_results.json') != ''
         uses: actions/upload-artifact@v4
         with:
           name: scan-results
-          path: scan_results.json
+          path: data/scan_results.json

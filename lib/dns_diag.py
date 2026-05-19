@@ -36,9 +36,7 @@ try:
 except ImportError:
     HAS_DNSPYTHON = False
 
-SCRIPT_DIR = Path(__file__).resolve().parent
-DNS_SESSIONS_DIR = SCRIPT_DIR / "dns_sessions"
-DNS_GRAPH_DIR = SCRIPT_DIR / "dns_graph"
+from paths import DNS_GRAPH_DIR, DNS_SESSIONS_DIR
 DNS_FORMAT_V1 = "fnkit_dns_v1"
 LEGACY_DNS_FORMAT_V1 = "ip_checker_dns_v1"
 
@@ -92,7 +90,7 @@ STRINGS: Dict[str, Dict[str, str]] = {
         "prompt_session": "Session file path or number from list (0 cancel): ",
         "prompt_wordlist": "Wordlist path (Enter = skip): ",
         "prompt_crt": "Also query crt.sh passive subdomains? (y/n) [n]: ",
-        "empty_sessions": "(No JSON in dns_sessions/ yet.)",
+        "empty_sessions": "(No JSON in data/sessions/dns/ yet.)",
         "file_not_found": "File not found: {path}",
     },
     "ru": {
@@ -136,7 +134,7 @@ STRINGS: Dict[str, Dict[str, str]] = {
         "prompt_session": "Путь к JSON или номер из списка (0 отмена): ",
         "prompt_wordlist": "Путь к wordlist (Enter — пропустить): ",
         "prompt_crt": "Запросить поддомены на crt.sh? (y/n) [n]: ",
-        "empty_sessions": "(В dns_sessions/ пока нет JSON.)",
+        "empty_sessions": "(В data/sessions/dns/ пока нет JSON.)",
         "file_not_found": "Файл не найден: {path}",
     },
 }

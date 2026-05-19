@@ -19,8 +19,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-SCRIPT_DIR = Path(__file__).resolve().parent
-NETWORK_CAPTURE_DIR = SCRIPT_DIR / "network capture"
+from paths import NETWORK_CAPTURE_DIR
 
 # Цвета согласованы с network_diag
 C_RESET = "\033[0m"

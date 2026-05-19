@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import ipaddress
 import json
+import os
 import platform
 import re
 import shutil
@@ -16,6 +17,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import contextmanager, nullcontext
 from datetime import datetime, timezone
 from pathlib import Path
@@ -46,8 +48,7 @@ C_GREEN = "\033[92m"
 C_WARN = "\033[93m"
 C_FAIL = "\033[91m"
 
-SCRIPT_DIR = Path(__file__).resolve().parent
-TRACE_SESSIONS_DIR = SCRIPT_DIR / "trace_sessions"
+from paths import TRACE_SESSIONS_DIR
 TRACE_FORMAT_V1 = "fnkit_trace_v1"
 LEGACY_TRACE_FORMAT_V1 = "ip_checker_trace_v1"
 
@@ -64,7 +65,7 @@ STRINGS: Dict[str, Dict[str, str]] = {
         "trace_log_hint": "Scroll log (screen is not cleared). Keys: p pause · q stop · Ctrl+C stop",
         "trace_dashboard_hint": "Table refreshes in place (same window). Keys: p pause · q stop · Ctrl+C stop",
         "trace_col_trend": "Trend (RTT)",
-        "trace_legend": "interval {sec}s  |  rediscover every {n} rounds",
+        "trace_legend": "interval {sec}s  |  rediscover every {n} rounds  |  parallel ping (MTR-style)",
         "trace_round": "Round {n}",
         "trace_pause_mark": "PAUSE",
         "trace_dashboard_title": "Route latency monitor → {target}",
@@ -94,6 +95,7 @@ STRINGS: Dict[str, Dict[str, str]] = {
         "speed_dl": "Download: ~{mbps:.1f} Mbps ({mb:.2f} MB in {sec:.2f}s)",
         "speed_ul": "Upload:   ~{mbps:.1f} Mbps ({mb:.2f} MB in {sec:.2f}s)",
         "speed_ul_fail": "Upload test failed: {err}",
+        "speed_parallel": "Parallel HTTP streams: {n}",
         "speed_footer": "Figures depend on the CDN path, parallelism, Wi‑Fi, and DPI.",
         "invalid_host": "Invalid host/IP: {host}",
         "invalid_yes_no": "Please enter y or n.",
@@ -132,7 +134,7 @@ STRINGS: Dict[str, Dict[str, str]] = {
         "trace_log_hint": "Лог копится, экран не очищается. Клавиши: p пауза · q стоп · Ctrl+C стоп",
         "trace_dashboard_hint": "Таблица обновляется на месте (одно окно). Клавиши: p пауза · q стоп · Ctrl+C стоп",
         "trace_col_trend": "Тренд (RTT)",
-        "trace_legend": "интервал {sec}s  |  повторный traceroute каждые {n} циклов",
+        "trace_legend": "интервал {sec}s  |  повторный traceroute каждые {n} циклов  |  параллельный ping (MTR)",
         "trace_round": "Цикл {n}",
         "trace_pause_mark": "ПАУЗА",
         "trace_dashboard_title": "Монитор задержки по маршруту → {target}",
@@ -162,6 +164,7 @@ STRINGS: Dict[str, Dict[str, str]] = {
         "speed_dl": "Загрузка: ~{mbps:.1f} Мбит/с ({mb:.2f} МБ за {sec:.2f} с)",
         "speed_ul": "Отдача:   ~{mbps:.1f} Мбит/с ({mb:.2f} МБ за {sec:.2f} с)",
         "speed_ul_fail": "Тест отдачи не удался: {err}",
+        "speed_parallel": "Параллельных HTTP-потоков: {n}",
         "speed_footer": "Оценка зависит от CDN, Wi‑Fi, DPI и текущей загрузки сети.",
         "invalid_host": "Некорректный хост/IP: {host}",
         "invalid_yes_no": "Введите y или n.",
@@ -197,6 +200,9 @@ HTTP_UA = (
     "Mozilla/5.0 (compatible; fnkit/1.0; fieldnetkit) "
     "AppleWebKit/537.36 (KHTML, like Gecko)"
 )
+CLOUDFLARE_SPEED_DOWN = "https://speed.cloudflare.com/__down"
+CLOUDFLARE_SPEED_UP = "https://speed.cloudflare.com/__up"
+DEFAULT_SPEED_HTTP_STREAMS = 4
 SPARK = "▁▂▃▄▅▆▇█"
 # Alternate screen + cursor home (TTY): one-window trace dashboard
 ANSI_ALT_ENTER = "\033[?1049h\033[2J\033[H"
@@ -321,6 +327,40 @@ def ping_rtt_ms(ip: str) -> Optional[float]:
     return None
 
 
+def ping_hops_parallel(
+    hops: List[Tuple[int, Optional[str]]],
+    *,
+    max_workers: Optional[int] = None,
+) -> Dict[int, Optional[float]]:
+    """
+    MTR-style probe round: ping every hop with an address at the same time.
+    Returns hop number -> RTT ms (None on timeout / no address).
+    """
+    result: Dict[int, Optional[float]] = {}
+    targets: List[Tuple[int, str]] = []
+    for hop, ip in hops:
+        if not ip:
+            result[hop] = None
+        else:
+            targets.append((hop, ip))
+
+    if not targets:
+        return result
+
+    workers = max_workers if max_workers is not None else min(32, max(1, len(targets)))
+
+    def _probe(item: Tuple[int, str]) -> Tuple[int, Optional[float]]:
+        hop_num, addr = item
+        return hop_num, ping_rtt_ms(addr)
+
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = [pool.submit(_probe, item) for item in targets]
+        for fut in as_completed(futures):
+            hop_num, ms = fut.result()
+            result[hop_num] = ms
+    return result
+
+
 def icmp_median_ms(target: str, count: int = 5, gap: float = 0.12) -> Optional[float]:
     samples: List[float] = []
     for _ in range(count):
@@ -437,7 +477,10 @@ def dump_round_snapshot(
     round_id: int,
     hops: List[Tuple[int, Optional[str]]],
     rtt_by_hop: Dict[int, Optional[float]],
+    sent: Optional[Dict[int, int]] = None,
+    ok: Optional[Dict[int, int]] = None,
 ) -> Dict[str, Any]:
+    """Serialize one monitor round; include cumulative sent/ok for faithful loss on replay."""
     rtt_serial: Dict[str, Any] = {}
     for hop, ip in hops:
         if not ip:
@@ -445,12 +488,17 @@ def dump_round_snapshot(
         v = rtt_by_hop.get(hop)
         rtt_serial[str(hop)] = v
     hops_serial = [[hop, ip] for hop, ip in hops]
-    return {
+    snap: Dict[str, Any] = {
         "n": round_id,
         "t": datetime.now(timezone.utc).isoformat(),
         "hops": hops_serial,
         "rtt": rtt_serial,
     }
+    if sent is not None:
+        snap["sent"] = {str(hop): int(sent.get(hop, 0)) for hop, _ in hops}
+    if ok is not None:
+        snap["ok"] = {str(hop): int(ok.get(hop, 0)) for hop, _ in hops}
+    return snap
 
 
 def _trend_width(term_w: int) -> int:
@@ -914,6 +962,41 @@ def replay_trace_session(
     rediscover = int(data.get("rediscover_every") or 0)
     rdash: Dict[str, Any] = {"entered": False, "hop_sig": None}
 
+    def _parse_rtt_map(
+        hops_list: List[Tuple[int, Optional[str]]],
+        rtt_map: Dict[str, Any],
+    ) -> Dict[int, Optional[float]]:
+        out: Dict[int, Optional[float]] = {}
+        for hop_num, ip in hops_list:
+            if not ip:
+                out[hop_num] = None
+                continue
+            key = str(hop_num)
+            if key not in rtt_map:
+                out[hop_num] = None
+                continue
+            raw_v = rtt_map[key]
+            if raw_v is None:
+                out[hop_num] = None
+            else:
+                out[hop_num] = float(raw_v)
+        return out
+
+    def _load_counters_from_snap(
+        snap: Dict[str, Any],
+        hops_list: List[Tuple[int, Optional[str]]],
+    ) -> Optional[Tuple[Dict[int, int], Dict[int, int]]]:
+        raw_sent = snap.get("sent")
+        raw_ok = snap.get("ok")
+        if not isinstance(raw_sent, dict) or not isinstance(raw_ok, dict):
+            return None
+        s_out = {int(k): int(v) for k, v in raw_sent.items()}
+        o_out = {int(k): int(v) for k, v in raw_ok.items()}
+        for hop_num, _ in hops_list:
+            s_out.setdefault(hop_num, 0)
+            o_out.setdefault(hop_num, 0)
+        return s_out, o_out
+
     try:
         for snap in rounds:
             n = int(snap["n"])
@@ -921,34 +1004,27 @@ def replay_trace_session(
             hops_list: List[Tuple[int, Optional[str]]] = [
                 (int(h), (ip if ip is not None else None)) for h, ip in hops_raw
             ]
-            rtt_map = snap.get("rtt") or {}
-            rtt_parsed: Dict[int, Optional[float]] = {}
-            for hop_num, ip in hops_list:
-                if not ip:
-                    rtt_parsed[hop_num] = None
-                    continue
-                key = str(hop_num)
-                if key not in rtt_map:
-                    rtt_parsed[hop_num] = None
-                    continue
-                raw_v = rtt_map[key]
-                if raw_v is None:
-                    rtt_parsed[hop_num] = None
-                else:
-                    rtt_parsed[hop_num] = float(raw_v)
+            rtt_parsed = _parse_rtt_map(hops_list, snap.get("rtt") or {})
+
+            stored = _load_counters_from_snap(snap, hops_list)
+            if stored is not None:
+                sent, okcnt = stored
+            else:
+                for hop_num, ip in hops_list:
+                    sent.setdefault(hop_num, 0)
+                    okcnt.setdefault(hop_num, 0)
+                    if not ip:
+                        continue
+                    sent[hop_num] += 1
+                    if rtt_parsed.get(hop_num) is not None:
+                        okcnt[hop_num] += 1
 
             for hop_num, ip in hops_list:
                 history.setdefault(hop_num, [])
-                sent.setdefault(hop_num, 0)
-                okcnt.setdefault(hop_num, 0)
                 if not ip:
                     history[hop_num].append(None)
                     continue
-                sent[hop_num] += 1
-                ms = rtt_parsed.get(hop_num)
-                if ms is not None:
-                    okcnt[hop_num] += 1
-                history[hop_num].append(ms)
+                history[hop_num].append(rtt_parsed.get(hop_num))
 
             if use_replay_dash:
                 _emit_trace_dashboard(
@@ -1010,8 +1086,8 @@ def run_trace_monitor(
     rediscover_every: int = 45,
 ) -> None:
     """
-    После traceroute пингуем hop-IP в цикле. В TTY — одно «окно» (альтернативный
-    экран терминала) с перерисовкой таблицы; без TTY — накопительный лог.
+    После traceroute пингуем все hop-IP параллельно каждый раунд (MTR-style).
+    В TTY — одно «окно» (альтернативный экран) с перерисовкой таблицы; без TTY — лог.
     Управление: p — пауза, q или Ctrl+C — выход и предложение сохранить.
     """
     if shutil.which("ping") is None:
@@ -1110,44 +1186,39 @@ def run_trace_monitor(
 
                 rtt_snap: Dict[int, Optional[float]] = {}
                 aborted_round = False
-                for hop, ip in hops:
-                    if ctrl["stop"]:
-                        aborted_round = True
-                        break
-                    while ctrl["paused"] and not ctrl["stop"]:
-                        ch = poll_key(0.08)
-                        prev_p = ctrl["paused"]
-                        apply_key(ch)
-                        if (
-                            use_keys
-                            and dash.get("entered")
-                            and dash.get("last_frame")
-                            and (ch is not None or ctrl["paused"] != prev_p)
-                        ):
-                            dn, hp, hist, sn, okm = dash["last_frame"]
-                            _emit_trace_dashboard(
-                                lang,
-                                target,
-                                dn,
-                                hp,
-                                hist,
-                                sn,
-                                okm,
-                                interval_sec=interval,
-                                rediscover_every=rediscover_every,
-                                paused=ctrl["paused"],
-                                dash=dash,
-                            )
+                while ctrl["paused"] and not ctrl["stop"]:
+                    ch = poll_key(0.08)
+                    prev_p = ctrl["paused"]
+                    apply_key(ch)
+                    if (
+                        use_keys
+                        and dash.get("entered")
+                        and dash.get("last_frame")
+                        and (ch is not None or ctrl["paused"] != prev_p)
+                    ):
+                        dn, hp, hist, sn, okm = dash["last_frame"]
+                        _emit_trace_dashboard(
+                            lang,
+                            target,
+                            dn,
+                            hp,
+                            hist,
+                            sn,
+                            okm,
+                            interval_sec=interval,
+                            rediscover_every=rediscover_every,
+                            paused=ctrl["paused"],
+                            dash=dash,
+                        )
+                if ctrl["stop"]:
+                    aborted_round = True
+                else:
                     ch = poll_key(0)
                     apply_key(ch)
                     if ctrl["stop"]:
                         aborted_round = True
-                        break
-                    if not ip:
-                        rtt_snap[hop] = None
-                        continue
-                    ms = ping_rtt_ms(ip)
-                    rtt_snap[hop] = ms
+                    else:
+                        rtt_snap = ping_hops_parallel(hops)
 
                 if aborted_round:
                     break
@@ -1167,7 +1238,9 @@ def run_trace_monitor(
                         ok[hop] += 1
                     history[hop].append(ms)
 
-                rounds_log.append(dump_round_snapshot(display_n, hops, rtt_snap))
+                rounds_log.append(
+                    dump_round_snapshot(display_n, hops, rtt_snap, sent=sent, ok=ok)
+                )
                 if use_keys:
                     _emit_trace_dashboard(
                         lang,
@@ -1263,9 +1336,67 @@ def run_trace_monitor(
     )
 
 
-def run_speed_test(lang: str = "en") -> None:
-    """Задержка ICMP + HTTP download/upload через speed.cloudflare.com."""
+def speed_http_stream_count() -> int:
+    """Parallel Cloudflare HTTP streams (override with FNKIT_SPEED_STREAMS)."""
+    raw = os.getenv("FNKIT_SPEED_STREAMS", "").strip()
+    if raw:
+        try:
+            return max(1, min(16, int(raw)))
+        except ValueError:
+            pass
+    return DEFAULT_SPEED_HTTP_STREAMS
+
+
+def _split_byte_chunks(total_bytes: int, streams: int) -> List[int]:
+    streams = max(1, streams)
+    base = max(1, total_bytes) // streams
+    rem = max(1, total_bytes) % streams
+    sizes = [base + (1 if i < rem else 0) for i in range(streams)]
+    return sizes
+
+
+def _http_download_chunk(nbytes: int, *, timeout: float) -> int:
+    url = f"{CLOUDFLARE_SPEED_DOWN}?bytes={nbytes}"
+    req = urllib.request.Request(url, headers={"User-Agent": HTTP_UA})
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return len(resp.read())
+
+
+def _http_upload_chunk(nbytes: int, *, timeout: float) -> int:
+    req = urllib.request.Request(
+        CLOUDFLARE_SPEED_UP,
+        data=b"\0" * nbytes,
+        method="POST",
+        headers={"User-Agent": HTTP_UA, "Content-Type": "application/octet-stream"},
+    )
+    with urllib.request.urlopen(req, timeout=timeout):
+        return nbytes
+
+
+def _parallel_cloudflare_transfer(
+    total_bytes: int,
+    *,
+    direction: str,
+    streams: int,
+    timeout: float = 120.0,
+) -> Tuple[int, float]:
+    """Run download or upload across parallel HTTP streams; return (bytes, wall seconds)."""
+    chunks = _split_byte_chunks(total_bytes, streams)
+    worker = _http_download_chunk if direction == "down" else _http_upload_chunk
+    t0 = time.perf_counter()
+    transferred = 0
+    with ThreadPoolExecutor(max_workers=len(chunks)) as pool:
+        futures = [pool.submit(worker, size, timeout=timeout) for size in chunks]
+        for fut in as_completed(futures):
+            transferred += fut.result()
+    return transferred, time.perf_counter() - t0
+
+
+def run_speed_test(lang: str = "en", *, streams: Optional[int] = None) -> None:
+    """Задержка ICMP + HTTP download/upload через speed.cloudflare.com (parallel HTTP)."""
+    n_streams = streams if streams is not None else speed_http_stream_count()
     print(f"{C_BOLD}{localized(lang, 'speed_title')}{C_RESET}\n")
+    print(f"{C_CYAN}{localized(lang, 'speed_parallel', n=n_streams)}{C_RESET}\n")
 
     ping_ip = icmp_median_ms("1.1.1.1", count=5)
     if ping_ip is not None:
@@ -1274,33 +1405,23 @@ def run_speed_test(lang: str = "en") -> None:
         print(f"{C_WARN}{localized(lang, 'speed_ping_fail', reason='timeout / permission')}{C_RESET}")
 
     dl_bytes = 10_000_000
-    dl_url = f"https://speed.cloudflare.com/__down?bytes={dl_bytes}"
-    dl_req = urllib.request.Request(dl_url, headers={"User-Agent": HTTP_UA})
     try:
-        t0 = time.perf_counter()
-        with urllib.request.urlopen(dl_req, timeout=120) as resp:
-            body = resp.read()
-        dt = time.perf_counter() - t0
-        mb = len(body) / (1024 * 1024)
-        mbps = len(body) * 8 / dt / 1_000_000
+        nbytes, dt = _parallel_cloudflare_transfer(
+            dl_bytes, direction="down", streams=n_streams, timeout=120.0
+        )
+        mb = nbytes / (1024 * 1024)
+        mbps = nbytes * 8 / dt / 1_000_000 if dt > 0 else 0.0
         print(localized(lang, "speed_dl", mbps=mbps, mb=mb, sec=dt))
     except (urllib.error.URLError, OSError) as e:
         print(f"{C_FAIL}Download failed: {e}{C_RESET}")
 
     ul_bytes = 4_000_000
     try:
-        t0 = time.perf_counter()
-        ul_req = urllib.request.Request(
-            "https://speed.cloudflare.com/__up",
-            data=b"\0" * ul_bytes,
-            method="POST",
-            headers={"User-Agent": HTTP_UA, "Content-Type": "application/octet-stream"},
+        nbytes, dt = _parallel_cloudflare_transfer(
+            ul_bytes, direction="up", streams=n_streams, timeout=120.0
         )
-        with urllib.request.urlopen(ul_req, timeout=120):
-            pass
-        dt = time.perf_counter() - t0
-        mb = ul_bytes / (1024 * 1024)
-        mbps = ul_bytes * 8 / dt / 1_000_000
+        mb = nbytes / (1024 * 1024)
+        mbps = nbytes * 8 / dt / 1_000_000 if dt > 0 else 0.0
         print(localized(lang, "speed_ul", mbps=mbps, mb=mb, sec=dt))
     except (urllib.error.URLError, OSError) as e:
         print(f"{C_FAIL}{localized(lang, 'speed_ul_fail', err=e)}{C_RESET}")

@@ -8,14 +8,41 @@
     "license": "MIT"
   },
   "feature_groups": {
-    "core": ["python", "whois", "ping", "ip-api.com", "rir-whois"],
-    "diagnostics": ["traceroute", "tracert", "nslookup"],
-    "scan": ["nmap"],
-    "pcap": ["tcpdump", "tshark"],
-    "dns": ["dnspython", "crt.sh", "tshark"],
-    "enrichment": ["geoip2", "ip2location"],
-    "owasp": ["amass", "nettacker"],
-    "speedtest": ["speed.cloudflare.com"]
+    "core": [
+      "python",
+      "whois",
+      "ping",
+      "ip-api.com",
+      "rir-whois"
+    ],
+    "diagnostics": [
+      "traceroute",
+      "tracert",
+      "nslookup"
+    ],
+    "scan": [
+      "nmap"
+    ],
+    "pcap": [
+      "tcpdump",
+      "tshark"
+    ],
+    "dns": [
+      "dnspython",
+      "crt.sh",
+      "tshark"
+    ],
+    "enrichment": [
+      "geoip2",
+      "ip2location"
+    ],
+    "owasp": [
+      "amass",
+      "nettacker"
+    ],
+    "speedtest": [
+      "speed.cloudflare.com"
+    ]
   },
   "dependencies": [
     {
@@ -26,12 +53,38 @@
       "version": ">=3.10",
       "purl": "pkg:generic/python@3.10",
       "license": "PSF-2.0",
-      "modules": ["fnkit.py", "network_diag.py", "pcap_diag.py", "dns_diag.py", "owasp_toolkit.py"],
-      "check": { "kind": "python_version", "min": "3.10" },
+      "modules": [
+        "lib/fnkit.py",
+        "lib/network_diag.py",
+        "lib/pcap_diag.py",
+        "lib/dns_diag.py",
+        "lib/owasp_toolkit.py"
+      ],
+      "check": {
+        "kind": "python_version",
+        "min": "3.10"
+      },
       "install": {
-        "macos": { "brew": ["python@3.12"] },
-        "linux": { "apt": ["python3", "python3-pip", "python3-venv"] },
-        "windows": { "winget": ["Python.Python.3.12"], "choco": ["python"] }
+        "macos": {
+          "brew": [
+            "python@3.12"
+          ]
+        },
+        "linux": {
+          "apt": [
+            "python3",
+            "python3-pip",
+            "python3-venv"
+          ]
+        },
+        "windows": {
+          "winget": [
+            "Python.Python.3.12"
+          ],
+          "choco": [
+            "python"
+          ]
+        }
       }
     },
     {
@@ -42,12 +95,32 @@
       "version": "1.0+",
       "purl": "pkg:generic/whois@1.0",
       "license": "NOASSERTION",
-      "modules": ["fnkit.py"],
-      "check": { "kind": "cli", "bins": ["whois"] },
+      "modules": [
+        "lib/fnkit.py"
+      ],
+      "check": {
+        "kind": "cli",
+        "bins": [
+          "whois"
+        ]
+      },
       "install": {
-        "macos": { "brew": ["whois"] },
-        "linux": { "apt": ["whois"] },
-        "windows": { "choco": ["whois"], "note": "Or Sysinternals / third-party whois.exe on PATH" }
+        "macos": {
+          "brew": [
+            "whois"
+          ]
+        },
+        "linux": {
+          "apt": [
+            "whois"
+          ]
+        },
+        "windows": {
+          "choco": [
+            "whois"
+          ],
+          "note": "Or Sysinternals / third-party whois.exe on PATH"
+        }
       }
     },
     {
@@ -57,12 +130,27 @@
       "scope": "required",
       "purl": "pkg:generic/ping",
       "license": "NOASSERTION",
-      "modules": ["network_diag.py"],
-      "check": { "kind": "cli", "bins": ["ping"] },
+      "modules": [
+        "lib/network_diag.py"
+      ],
+      "check": {
+        "kind": "cli",
+        "bins": [
+          "ping"
+        ]
+      },
       "install": {
-        "macos": { "note": "Preinstalled on macOS" },
-        "linux": { "apt": ["iputils-ping"] },
-        "windows": { "note": "Built into Windows" }
+        "macos": {
+          "note": "Preinstalled on macOS"
+        },
+        "linux": {
+          "apt": [
+            "iputils-ping"
+          ]
+        },
+        "windows": {
+          "note": "Built into Windows"
+        }
       }
     },
     {
@@ -73,12 +161,30 @@
       "purl": "pkg:generic/traceroute",
       "license": "NOASSERTION",
       "feature_group": "diagnostics",
-      "modules": ["network_diag.py", "fnkit.py"],
-      "check": { "kind": "cli_any", "bins": ["traceroute", "traceroute6", "tracert"] },
+      "modules": [
+        "lib/network_diag.py",
+        "lib/fnkit.py"
+      ],
+      "check": {
+        "kind": "cli_any",
+        "bins": [
+          "traceroute",
+          "traceroute6",
+          "tracert"
+        ]
+      },
       "install": {
-        "macos": { "note": "Often preinstalled" },
-        "linux": { "apt": ["traceroute"] },
-        "windows": { "note": "Use tracert (built-in)" }
+        "macos": {
+          "note": "Often preinstalled"
+        },
+        "linux": {
+          "apt": [
+            "traceroute"
+          ]
+        },
+        "windows": {
+          "note": "Use tracert (built-in)"
+        }
       }
     },
     {
@@ -89,10 +195,23 @@
       "purl": "pkg:generic/tracert",
       "license": "NOASSERTION",
       "feature_group": "diagnostics",
-      "platforms": ["windows"],
-      "modules": ["network_diag.py"],
-      "check": { "kind": "cli", "bins": ["tracert"] },
-      "install": { "windows": { "note": "Built into Windows" } }
+      "platforms": [
+        "windows"
+      ],
+      "modules": [
+        "lib/network_diag.py"
+      ],
+      "check": {
+        "kind": "cli",
+        "bins": [
+          "tracert"
+        ]
+      },
+      "install": {
+        "windows": {
+          "note": "Built into Windows"
+        }
+      }
     },
     {
       "id": "nslookup",
@@ -102,12 +221,27 @@
       "purl": "pkg:generic/nslookup",
       "license": "NOASSERTION",
       "feature_group": "diagnostics",
-      "modules": ["fnkit.py"],
-      "check": { "kind": "cli", "bins": ["nslookup"] },
+      "modules": [
+        "lib/fnkit.py"
+      ],
+      "check": {
+        "kind": "cli",
+        "bins": [
+          "nslookup"
+        ]
+      },
       "install": {
-        "macos": { "note": "Preinstalled" },
-        "linux": { "apt": ["dnsutils"] },
-        "windows": { "note": "Built into Windows" }
+        "macos": {
+          "note": "Preinstalled"
+        },
+        "linux": {
+          "apt": [
+            "dnsutils"
+          ]
+        },
+        "windows": {
+          "note": "Built into Windows"
+        }
       }
     },
     {
@@ -118,12 +252,34 @@
       "purl": "pkg:generic/nmap",
       "license": "NOASSERTION",
       "feature_group": "scan",
-      "modules": ["fnkit.py"],
-      "check": { "kind": "cli", "bins": ["nmap"] },
+      "modules": [
+        "lib/fnkit.py"
+      ],
+      "check": {
+        "kind": "cli",
+        "bins": [
+          "nmap"
+        ]
+      },
       "install": {
-        "macos": { "brew": ["nmap"] },
-        "linux": { "apt": ["nmap"] },
-        "windows": { "choco": ["nmap"], "winget": ["Insecure.Nmap"] }
+        "macos": {
+          "brew": [
+            "nmap"
+          ]
+        },
+        "linux": {
+          "apt": [
+            "nmap"
+          ]
+        },
+        "windows": {
+          "choco": [
+            "nmap"
+          ],
+          "winget": [
+            "Insecure.Nmap"
+          ]
+        }
       }
     },
     {
@@ -134,12 +290,27 @@
       "purl": "pkg:generic/tcpdump",
       "license": "NOASSERTION",
       "feature_group": "pcap",
-      "modules": ["pcap_diag.py"],
-      "check": { "kind": "cli", "bins": ["tcpdump"] },
+      "modules": [
+        "lib/pcap_diag.py"
+      ],
+      "check": {
+        "kind": "cli",
+        "bins": [
+          "tcpdump"
+        ]
+      },
       "install": {
-        "macos": { "note": "Preinstalled on many macOS versions" },
-        "linux": { "apt": ["tcpdump"] },
-        "windows": { "note": "Use WSL or Npcap build; not native on Windows" }
+        "macos": {
+          "note": "Preinstalled on many macOS versions"
+        },
+        "linux": {
+          "apt": [
+            "tcpdump"
+          ]
+        },
+        "windows": {
+          "note": "Use WSL or Npcap build; not native on Windows"
+        }
       }
     },
     {
@@ -150,12 +321,36 @@
       "purl": "pkg:generic/tshark",
       "license": "NOASSERTION",
       "feature_group": "pcap",
-      "modules": ["pcap_diag.py", "dns_diag.py"],
-      "check": { "kind": "cli", "bins": ["tshark"] },
+      "modules": [
+        "lib/pcap_diag.py",
+        "lib/dns_diag.py"
+      ],
+      "check": {
+        "kind": "cli",
+        "bins": [
+          "tshark"
+        ]
+      },
       "install": {
-        "macos": { "brew": ["wireshark"] },
-        "linux": { "apt": ["tshark", "wireshark-common"] },
-        "windows": { "choco": ["wireshark"], "winget": ["WiresharkFoundation.Wireshark"] }
+        "macos": {
+          "brew": [
+            "wireshark"
+          ]
+        },
+        "linux": {
+          "apt": [
+            "tshark",
+            "wireshark-common"
+          ]
+        },
+        "windows": {
+          "choco": [
+            "wireshark"
+          ],
+          "winget": [
+            "WiresharkFoundation.Wireshark"
+          ]
+        }
       }
     },
     {
@@ -167,10 +362,21 @@
       "purl": "pkg:pypi/dnspython@2.4.0",
       "license": "ISC",
       "feature_group": "dns",
-      "modules": ["dns_diag.py"],
-      "check": { "kind": "pip", "import": "dns", "requirements": "requirements-dns.txt" },
+      "modules": [
+        "lib/dns_diag.py"
+      ],
+      "check": {
+        "kind": "pip",
+        "import": "dns",
+        "requirements": "requirements-dns.txt"
+      },
       "install": {
-        "all": { "pip": ["-r", "requirements-dns.txt"] }
+        "all": {
+          "pip": [
+            "-r",
+            "requirements-dns.txt"
+          ]
+        }
       }
     },
     {
@@ -182,9 +388,21 @@
       "purl": "pkg:pypi/geoip2",
       "license": "Apache-2.0",
       "feature_group": "enrichment",
-      "modules": ["fnkit.py"],
-      "check": { "kind": "pip", "import": "geoip2", "requirements": "requirements-optional.txt" },
-      "install": { "all": { "pip": ["geoip2>=4.8.0"] } }
+      "modules": [
+        "lib/fnkit.py"
+      ],
+      "check": {
+        "kind": "pip",
+        "import": "geoip2",
+        "requirements": "requirements-optional.txt"
+      },
+      "install": {
+        "all": {
+          "pip": [
+            "geoip2>=4.8.0"
+          ]
+        }
+      }
     },
     {
       "id": "ip2location",
@@ -195,9 +413,21 @@
       "purl": "pkg:pypi/ip2location",
       "license": "MIT",
       "feature_group": "enrichment",
-      "modules": ["fnkit.py"],
-      "check": { "kind": "pip", "import": "IP2Location", "requirements": "requirements-optional.txt" },
-      "install": { "all": { "pip": ["IP2Location>=8.10.0"] } }
+      "modules": [
+        "lib/fnkit.py"
+      ],
+      "check": {
+        "kind": "pip",
+        "import": "IP2Location",
+        "requirements": "requirements-optional.txt"
+      },
+      "install": {
+        "all": {
+          "pip": [
+            "IP2Location>=8.10.0"
+          ]
+        }
+      }
     },
     {
       "id": "amass",
@@ -207,12 +437,30 @@
       "purl": "pkg:generic/amass",
       "license": "Apache-2.0",
       "feature_group": "owasp",
-      "modules": ["owasp_toolkit.py"],
-      "check": { "kind": "cli", "bins": ["amass"] },
+      "modules": [
+        "lib/owasp_toolkit.py"
+      ],
+      "check": {
+        "kind": "cli",
+        "bins": [
+          "amass"
+        ]
+      },
       "install": {
-        "macos": { "brew": ["amass"] },
-        "linux": { "note": "https://github.com/owasp-amass/amass#installation" },
-        "windows": { "choco": ["amass"], "note": "Or download release binary" }
+        "macos": {
+          "brew": [
+            "amass"
+          ]
+        },
+        "linux": {
+          "note": "https://github.com/owasp-amass/amass#installation"
+        },
+        "windows": {
+          "choco": [
+            "amass"
+          ],
+          "note": "Or download release binary"
+        }
       }
     },
     {
@@ -223,8 +471,12 @@
       "purl": "pkg:generic/nettacker",
       "license": "AGPL-3.0",
       "feature_group": "owasp",
-      "modules": ["owasp_toolkit.py"],
-      "check": { "kind": "nettacker" },
+      "modules": [
+        "lib/owasp_toolkit.py"
+      ],
+      "check": {
+        "kind": "nettacker"
+      },
       "install": {
         "all": {
           "note": "git clone https://github.com/OWASP/Nettacker && pip install -r requirements.txt (AGPL-3.0)"
@@ -239,9 +491,19 @@
       "purl": "pkg:generic/ip-api.com",
       "license": "NOASSERTION",
       "feature_group": "core",
-      "modules": ["fnkit.py", "dns_diag.py"],
-      "check": { "kind": "network", "url": "http://ip-api.com/json/1.1.1.1?fields=status" },
-      "install": { "all": { "note": "Public HTTPS/HTTP API; no install" } }
+      "modules": [
+        "lib/fnkit.py",
+        "lib/dns_diag.py"
+      ],
+      "check": {
+        "kind": "network",
+        "url": "http://ip-api.com/json/1.1.1.1?fields=status"
+      },
+      "install": {
+        "all": {
+          "note": "Public HTTPS/HTTP API; no install"
+        }
+      }
     },
     {
       "id": "crt.sh",
@@ -251,9 +513,18 @@
       "purl": "pkg:generic/crt.sh",
       "license": "NOASSERTION",
       "feature_group": "dns",
-      "modules": ["dns_diag.py"],
-      "check": { "kind": "network", "url": "https://crt.sh/" },
-      "install": { "all": { "note": "Public certificate transparency API" } }
+      "modules": [
+        "lib/dns_diag.py"
+      ],
+      "check": {
+        "kind": "network",
+        "url": "https://crt.sh/"
+      },
+      "install": {
+        "all": {
+          "note": "Public certificate transparency API"
+        }
+      }
     },
     {
       "id": "speed.cloudflare.com",
@@ -263,9 +534,18 @@
       "purl": "pkg:generic/speed.cloudflare.com",
       "license": "NOASSERTION",
       "feature_group": "speedtest",
-      "modules": ["network_diag.py"],
-      "check": { "kind": "network", "url": "https://speed.cloudflare.com/" },
-      "install": { "all": { "note": "Cloudflare speed test endpoints" } }
+      "modules": [
+        "lib/network_diag.py"
+      ],
+      "check": {
+        "kind": "network",
+        "url": "https://speed.cloudflare.com/"
+      },
+      "install": {
+        "all": {
+          "note": "Cloudflare speed test endpoints"
+        }
+      }
     },
     {
       "id": "rir-whois",
@@ -275,9 +555,18 @@
       "purl": "pkg:generic/rir-whois",
       "license": "NOASSERTION",
       "feature_group": "core",
-      "modules": ["fnkit.py"],
-      "check": { "kind": "note", "message": "Reached via system whois client" },
-      "install": { "all": { "note": "Regional registries; no separate install" } }
+      "modules": [
+        "lib/fnkit.py"
+      ],
+      "check": {
+        "kind": "note",
+        "message": "Reached via system whois client"
+      },
+      "install": {
+        "all": {
+          "note": "Regional registries; no separate install"
+        }
+      }
     }
   ]
 }

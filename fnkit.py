@@ -12,6 +12,7 @@ import ipaddress
 import io
 import re
 import time
+from collections import Counter
 from contextlib import redirect_stdout
 from pathlib import Path
 from datetime import datetime, timedelta
@@ -24,17 +25,30 @@ import shutil
 import os
 import signal
 
+from paths import (
+    DATABASE_FILE,
+    ENRICHMENT_CONFIG_FILE,
+    LANGUAGE_FILE,
+    REPO_ROOT,
+    RESULTS_FILE,
+    ensure_data_layout,
+    ensure_lib_path,
+)
+
+ensure_data_layout()
+ensure_lib_path()
+
 import network_diag
 import pcap_diag
 import dns_diag
 import owasp_toolkit
-
-# Configuration
-SCRIPT_DIR = Path(__file__).parent
-DATABASE_FILE = SCRIPT_DIR / "asn_database.json"
-RESULTS_FILE = SCRIPT_DIR / "scan_results.json"
-LANGUAGE_FILE = SCRIPT_DIR / ".language_config"
-ENRICHMENT_CONFIG_FILE = SCRIPT_DIR / ".enrichment_config.json"
+import pdns_lookup
+import ip_egress_check
+import ptr_scan
+MAX_POOLS_PER_ASN = 3  # legacy alias for ASN sampling display cap
+MIN_POOL_PREFIXLEN = 20  # ignore /8–/19 pools (false match risk)
+MAX_POOLS_STORE_PER_ASN = 96
+MAX_POOLS_SAMPLE_CHECK = 8
 
 # Global language setting
 CURRENT_LANGUAGE = "en"
@@ -51,6 +65,7 @@ class Colors:
     BGRED = '\033[41m'
     ENDC = '\033[0m'
     BOLD = '\033[1m'
+    DIM = '\033[2m'
     UNDERLINE = '\033[4m'
 
 
@@ -165,6 +180,41 @@ TRANSLATIONS = {
         "auth_check_ok": "no obvious conflict signals",
         "auth_check_warn_geo_whois": "geo country and WHOIS country differ",
         "auth_check_warn_rir_geo": "WHOIS RIR region differs from geo country region",
+        "bgp_lookup_running": "BGP origin lookup (Team Cymru)...",
+        "bgp_origin_title": "BGP origin (live routing)",
+        "bgp_origin_asn": "Origin ASN: ",
+        "bgp_origin_prefix": "BGP prefix: ",
+        "bgp_origin_registry": "Registry: ",
+        "bgp_origin_as_name": "AS name: ",
+        "bgp_origin_match_db": "✓ BGP origin matches local database ASN",
+        "bgp_origin_mismatch_db": "✗ BGP origin ASN differs from local database (expected {expected}, live {live})",
+        "bgp_origin_mismatch_geo": "⚠ BGP origin ASN differs from geo API ASN ({geo})",
+        "bgp_origin_lookup_failed": "BGP origin lookup failed: ",
+        "bgp_pools_collecting": "Collecting BGP prefixes for {asn} (WHOIS routes + Team Cymru per IP)...",
+        "bgp_pools_found": "BGP prefixes for database: {n} pools (/{min} or longer)",
+        "bgp_pools_none": "No specific BGP prefixes found; using /24 from anchor IP.",
+        "bgp_pools_coarse_skipped": "Skipped coarse pool (/{plen} < /{min}): {pool}",
+        "asn_dedupe_saved": "Merged {n} duplicate ASN row(s) in asn_database.json (one entry per ASN number).",
+        "db_maint_title": "ASN database maintenance",
+        "db_maint_merged": "  Duplicate ASN rows merged: {n}",
+        "db_maint_coarse": "  Coarse pools removed (wider than /{min}): {n}",
+        "db_maint_asns": "  ASN rows: {n}",
+        "db_maint_pools": "  Acceptable pools (match-ready): {n}",
+        "db_maint_empty": "  ASN rows without match-ready pools: {n}",
+        "db_maint_empty_hint": "    → refresh via menu IP check / unknown ASN + BGP, or: python3 fnkit.py --maintain-db",
+        "db_maint_issues": "  Validation issues: {n}",
+        "db_maint_ok": "  Schema/metadata: OK",
+        "db_refresh_asn": "  Refreshing {asn} ({i}/{n})...",
+        "db_refresh_done": "  BGP/WHOIS pool refresh: {ok} ASN updated, {empty} still empty, {err} errors",
+        "pool_match_ambiguous": "⚠ Multiple DB rows match this IP; disambiguated by geo/BGP (ASN {asn}, {country}).",
+        "pool_match_ambiguous_unresolved": "⚠ Ambiguous pool match — several ASN records tie; check asn_database.json.",
+        "pdns_lookup_running": "Passive DNS / historical context lookup…",
+        "egress_check_running": "Egress / NAT context (Tor, proxy, datacenter)…",
+        "ptr_reverse": "Reverse DNS (PTR): ",
+        "ptr_none": "(no PTR)",
+        "ptr_range_prompt_mode": "Range mode: 1=geo check (up to 10 IPs), 2=PTR sweep (rate-limited): ",
+        "ptr_range_invalid_mode": "Enter 1 or 2.",
+        "ptr_qps_prompt": "PTR queries per second [10]: ",
         "tools_menu_title": "Additional network tools (checked IP)",
         "tools_1": "1. nmap (run with -A -T4)",
         "tools_2": "2. traceroute / tracert to 8.8.8.8 (max 20 hops, bounded wait)",
@@ -173,8 +223,9 @@ TRANSLATIONS = {
         "tools_nmap_interrupted": "nmap stopped — back to tools menu.",
         "tools_3": "3. nslookup  (this IP, system resolver)",
         "tools_4": "4. OWASP Secure Headers (quick, built-in)",
+        "tools_5": "5. TLS check (cert, cipher, legacy protocols)",
         "tools_0": "0. Skip / back",
-        "tools_prompt": "Select (0-4): ",
+        "tools_prompt": "Select (0-5): ",
         "tools_running": "Running: ",
         "tools_done": "— done —",
         "tools_cmd_missing": "Command not found in PATH: ",
@@ -209,7 +260,7 @@ TRANSLATIONS = {
         "diag_pcap_capture_secs": "Duration seconds [10]: ",
         "diag_pcap_capture_filter": "Optional BPF filter (Enter to skip, e.g. tcp port 443): ",
         "diag_replay_intro": "Tip: record via diagnostics item 2 (hop monitor); after q/stop, save JSON — default-route interface is filled in automatically when the OS reports it (otherwise you pick from the list). Sessions folder:\n  {dir}\n",
-        "diag_replay_empty": "(No .json files in trace_sessions yet — run hop monitor (item 2) first.)",
+        "diag_replay_empty": "(No .json in data/sessions/trace/ yet — run hop monitor (item 2) first.)",
         "diag_replay_post_menu": "r — repeat · q — back to diagnostics menu",
         "diag_replay_post_prompt": "Your choice: ",
         "diag_replay_post_invalid": "Enter r or q.",
@@ -222,8 +273,10 @@ TRANSLATIONS = {
         "enrich_cfg_title": "Enrichment API key setup",
         "enrich_cfg_opt_1": "1. MaxMind",
         "enrich_cfg_opt_2": "2. IP2Location",
+        "enrich_cfg_opt_3": "3. VirusTotal (passive DNS)",
         "enrich_cfg_opt_0": "0. Back",
-        "enrich_cfg_prompt": "Select (0-2): ",
+        "enrich_cfg_prompt": "Select (0-3): ",
+        "enrich_cfg_vt_prompt": "Enter VirusTotal API key (or 0 to go back): ",
         "enrich_cfg_mm_prompt": "Enter MaxMind key as ACCOUNT_ID:LICENSE_KEY (or 0 to go back): ",
         "enrich_cfg_ip2_prompt": "Enter IP2Location API key (or 0 to go back): ",
         "enrich_cfg_saved": "Saved.",
@@ -340,6 +393,41 @@ TRANSLATIONS = {
         "auth_check_ok": "явных конфликтов не обнаружено",
         "auth_check_warn_geo_whois": "страна geo и страна WHOIS отличаются",
         "auth_check_warn_rir_geo": "регион WHOIS RIR отличается от региона geo-страны",
+        "bgp_lookup_running": "Проверка BGP origin (Team Cymru)...",
+        "bgp_origin_title": "BGP origin (текущая маршрутизация)",
+        "bgp_origin_asn": "Origin ASN: ",
+        "bgp_origin_prefix": "BGP-префикс: ",
+        "bgp_origin_registry": "Реестр: ",
+        "bgp_origin_as_name": "Имя AS: ",
+        "bgp_origin_match_db": "✓ BGP origin совпадает с ASN в локальной базе",
+        "bgp_origin_mismatch_db": "✗ BGP origin ASN не совпадает с базой (ожидался {expected}, в BGP {live})",
+        "bgp_origin_mismatch_geo": "⚠ BGP origin ASN отличается от ASN geo API ({geo})",
+        "bgp_origin_lookup_failed": "Не удалось получить BGP origin: ",
+        "bgp_pools_collecting": "Сбор BGP-префиксов для {asn} (WHOIS route + Team Cymru по IP)...",
+        "bgp_pools_found": "Префиксы для базы: {n} пулов (/{min} и точнее)",
+        "bgp_pools_none": "Конкретные BGP-префиксы не найдены; используется /24 от якорного IP.",
+        "bgp_pools_coarse_skipped": "Пропущен слишком широкий пул (/{plen} < /{min}): {pool}",
+        "asn_dedupe_saved": "Объединены дубликаты ASN: {n} строк (одна запись на номер AS).",
+        "db_maint_title": "Обслуживание базы ASN",
+        "db_maint_merged": "  Объединено дубликатов ASN: {n}",
+        "db_maint_coarse": "  Удалено грубых пулов (шире /{min}): {n}",
+        "db_maint_asns": "  Строк ASN: {n}",
+        "db_maint_pools": "  Рабочих пулов (для match): {n}",
+        "db_maint_empty": "  ASN без рабочих пулов: {n}",
+        "db_maint_empty_hint": "    → обновите через проверку IP / unknown ASN + BGP или: python3 fnkit.py --maintain-db",
+        "db_maint_issues": "  Проблемы валидации: {n}",
+        "db_maint_ok": "  Схема/метаданные: OK",
+        "db_refresh_asn": "  Обновление {asn} ({i}/{n})...",
+        "db_refresh_done": "  Префиксы BGP/WHOIS: обновлено {ok} ASN, пусто {empty}, ошибок {err}",
+        "pool_match_ambiguous": "⚠ Несколько записей в базе; выбрано по geo/BGP (ASN {asn}, {country}).",
+        "pool_match_ambiguous_unresolved": "⚠ Неоднозначное совпадение пула — проверьте asn_database.json.",
+        "pdns_lookup_running": "Запрос passive DNS / исторического контекста…",
+        "egress_check_running": "Контекст egress / NAT (Tor, proxy, datacenter)…",
+        "ptr_reverse": "Reverse DNS (PTR): ",
+        "ptr_none": "(нет PTR)",
+        "ptr_range_prompt_mode": "Режим диапазона: 1=geo (до 10 IP), 2=PTR-обход (rate-limit): ",
+        "ptr_range_invalid_mode": "Введите 1 или 2.",
+        "ptr_qps_prompt": "Запросов PTR в секунду [10]: ",
         "tools_menu_title": "Доп. сетевые инструменты (проверяемый IP)",
         "tools_1": "1. nmap (запуск с ключами -A -T4)",
         "tools_2": "2. traceroute / tracert до 8.8.8.8 (макс. 20 хопов, ограниченное ожидание)",
@@ -348,8 +436,9 @@ TRANSLATIONS = {
         "tools_nmap_interrupted": "nmap остановлен — возврат в меню инструментов.",
         "tools_3": "3. nslookup  (этот IP, системный резолвер)",
         "tools_4": "4. OWASP Secure Headers (быстро, встроенно)",
+        "tools_5": "5. Проверка TLS (сертификат, cipher, устаревшие протоколы)",
         "tools_0": "0. Пропуск / назад",
-        "tools_prompt": "Выберите (0-4): ",
+        "tools_prompt": "Выберите (0-5): ",
         "tools_running": "Запуск: ",
         "tools_done": "— готово —",
         "tools_cmd_missing": "Команда не найдена в PATH: ",
@@ -384,7 +473,7 @@ TRANSLATIONS = {
         "diag_pcap_capture_secs": "Длительность (сек) [10]: ",
         "diag_pcap_capture_filter": "Опционально BPF (Enter пропуск, пример: tcp port 443): ",
         "diag_replay_intro": "Сначала запишите сессию: в диагностике п.2 (монитор хопов), после q/стоп — сохранение JSON; интерфейс маршрута по умолчанию подставляется автоматически, если ОС его отдаёт, иначе — выбор из списка. Папка сессий:\n  {dir}\n",
-        "diag_replay_empty": "(В trace_sessions пока нет .json — сначала п.2, монитор хопов.)",
+        "diag_replay_empty": "(В data/sessions/trace/ пока нет .json — сначала п.2, монитор хопов.)",
         "diag_replay_post_menu": "r — повторить · q — выйти на предыдущее меню",
         "diag_replay_post_prompt": "Ваш выбор: ",
         "diag_replay_post_invalid": "Введите r или q.",
@@ -397,8 +486,10 @@ TRANSLATIONS = {
         "enrich_cfg_title": "Настройка API ключей обогащения",
         "enrich_cfg_opt_1": "1. MaxMind",
         "enrich_cfg_opt_2": "2. IP2Location",
+        "enrich_cfg_opt_3": "3. VirusTotal (passive DNS)",
         "enrich_cfg_opt_0": "0. Назад",
-        "enrich_cfg_prompt": "Выберите (0-2): ",
+        "enrich_cfg_prompt": "Выберите (0-3): ",
+        "enrich_cfg_vt_prompt": "Введите API ключ VirusTotal (или 0 назад): ",
         "enrich_cfg_mm_prompt": "Введите ключ MaxMind в формате ACCOUNT_ID:LICENSE_KEY (или 0 назад): ",
         "enrich_cfg_ip2_prompt": "Введите API ключ IP2Location (или 0 назад): ",
         "enrich_cfg_saved": "Сохранено.",
@@ -490,6 +581,7 @@ def configure_enrichment_keys_menu() -> None:
         print(f"{Colors.BOLD}{t('enrich_cfg_title')}{Colors.ENDC}")
         print(f"{Colors.OKCYAN}{t('enrich_cfg_opt_1')}{Colors.ENDC}")
         print(f"{Colors.OKCYAN}{t('enrich_cfg_opt_2')}{Colors.ENDC}")
+        print(f"{Colors.OKCYAN}{t('enrich_cfg_opt_3')}{Colors.ENDC}")
         print(f"{Colors.OKCYAN}{t('enrich_cfg_opt_0')}{Colors.ENDC}")
         try:
             choice = input(f"{Colors.WARNING}{t('enrich_cfg_prompt')}{Colors.ENDC}").strip()
@@ -525,6 +617,18 @@ def configure_enrichment_keys_menu() -> None:
                 print(f"{Colors.FAIL}{t('enrich_cfg_invalid')}{Colors.ENDC}")
                 continue
             config["ip2location_api_key"] = key
+            if save_enrichment_config(config):
+                print(f"{Colors.OKGREEN}{t('enrich_cfg_saved')}{Colors.ENDC}")
+            else:
+                print(f"{Colors.FAIL}{t('enrich_cfg_save_failed')}{Colors.ENDC}")
+        elif choice == "3":
+            key = input(f"{Colors.OKCYAN}{t('enrich_cfg_vt_prompt')}{Colors.ENDC}").strip()
+            if key == "0":
+                continue
+            if not key:
+                print(f"{Colors.FAIL}{t('enrich_cfg_invalid')}{Colors.ENDC}")
+                continue
+            config["virustotal_api_key"] = key
             if save_enrichment_config(config):
                 print(f"{Colors.OKGREEN}{t('enrich_cfg_saved')}{Colors.ENDC}")
             else:
@@ -570,6 +674,10 @@ def load_database() -> Dict:
         with open(DATABASE_FILE, 'r', encoding='utf-8') as f:
             database = json.load(f)
             ensure_database_metadata(database)
+            merged = dedupe_asn_database(database)
+            if merged:
+                save_database(database)
+                print(f"{Colors.WARNING}{t('asn_dedupe_saved').format(n=merged)}{Colors.ENDC}")
             return database
     except FileNotFoundError:
         print(f"{Colors.FAIL}Error: Database file not found{Colors.ENDC}")
@@ -792,15 +900,224 @@ def update_database_metadata(database: Dict) -> None:
     metadata['total_asns'] = len(database.get('asn_data', []))
     metadata['total_ip_pools'] = sum(len(a.get('ip_pools', [])) for a in database.get('asn_data', []))
 
+
+def prune_coarse_pools_from_database(database: Dict) -> int:
+    """Drop pools broader than MIN_POOL_PREFIXLEN; normalize and dedupe the rest."""
+    removed = 0
+    for entry in database.get("asn_data", []):
+        kept: List[str] = []
+        seen: set[str] = set()
+        for raw in entry.get("ip_pools", []):
+            if is_acceptable_pool(raw):
+                cidr = normalize_pool_cidr(raw)
+                if cidr and cidr not in seen:
+                    seen.add(cidr)
+                    kept.append(cidr)
+            else:
+                removed += 1
+        entry["ip_pools"] = kept
+    return removed
+
+
+def validate_asn_database(database: Dict) -> Dict:
+    """Validate schema, unique ASN keys, and metadata counters."""
+    issues: List[str] = []
+    asn_data = database.get("asn_data", [])
+    if not isinstance(asn_data, list):
+        issues.append("asn_data is not a list")
+        asn_data = []
+
+    keys: List[Optional[str]] = []
+    for idx, entry in enumerate(asn_data):
+        if not isinstance(entry, dict):
+            issues.append(f"row {idx}: not an object")
+            continue
+        asn_key = normalize_asn_key(entry.get("asn"))
+        if not asn_key:
+            issues.append(f"row {idx}: invalid or missing asn")
+        keys.append(asn_key)
+        for field in ("expected_country", "expected_country_name", "owner", "ip_pools"):
+            if field not in entry:
+                issues.append(f"{asn_key or idx}: missing field {field}")
+        pools = entry.get("ip_pools")
+        if pools is not None and not isinstance(pools, list):
+            issues.append(f"{asn_key or idx}: ip_pools is not a list")
+
+    dupe_keys = [k for k, c in Counter(k for k in keys if k).items() if c > 1]
+    if dupe_keys:
+        issues.append(f"duplicate ASN keys: {sorted(dupe_keys)}")
+
+    meta = database.setdefault("metadata", {})
+    actual_asns = len(asn_data)
+    actual_pools = sum(len(e.get("ip_pools") or []) for e in asn_data if isinstance(e, dict))
+    if meta.get("total_asns") != actual_asns:
+        issues.append(f"metadata.total_asns={meta.get('total_asns')} != actual {actual_asns}")
+    if meta.get("total_ip_pools") != actual_pools:
+        issues.append(f"metadata.total_ip_pools={meta.get('total_ip_pools')} != actual {actual_pools}")
+
+    acceptable_pool_count = 0
+    empty_pool_asns: List[str] = []
+    merge_conflicts: List[str] = []
+    for entry in asn_data:
+        if not isinstance(entry, dict):
+            continue
+        asn_key = normalize_asn_key(entry.get("asn")) or "?"
+        acc = [p for p in entry.get("ip_pools", []) if is_acceptable_pool(p)]
+        acceptable_pool_count += len(acc)
+        if not acc:
+            empty_pool_asns.append(asn_key)
+        if "Merged" in (entry.get("notes") or "") and "conflicting countries" in (entry.get("notes") or ""):
+            merge_conflicts.append(asn_key)
+
+    return {
+        "ok": len(issues) == 0,
+        "issues": issues,
+        "stats": {
+            "asn_rows": actual_asns,
+            "pool_rows": actual_pools,
+            "acceptable_pools": acceptable_pool_count,
+            "empty_pool_asns": empty_pool_asns,
+            "merge_conflicts": merge_conflicts,
+        },
+    }
+
+
+def refresh_asn_pools_database(
+    database: Dict,
+    *,
+    only_empty: bool = False,
+    timeout_seconds: int = 15,
+    sleep_between: float = 0.25,
+    verbose: bool = True,
+) -> Dict:
+    """Re-collect /20+ prefixes per ASN from WHOIS routes and Team Cymru (new pool rules)."""
+    refreshed = 0
+    still_empty: List[str] = []
+    errors: List[Dict[str, str]] = []
+    today = datetime.now().strftime("%Y-%m-%d")
+    rows = [e for e in database.get("asn_data", []) if isinstance(e, dict)]
+    total = len(rows)
+
+    for i, entry in enumerate(rows, 1):
+        asn_key = normalize_asn_key(entry.get("asn"))
+        if not asn_key:
+            continue
+        acc = [p for p in entry.get("ip_pools", []) if is_acceptable_pool(p)]
+        if only_empty and acc:
+            continue
+
+        if verbose:
+            print(
+                f"{Colors.DIM}{t('db_refresh_asn').format(asn=asn_key, i=i, n=total)}{Colors.ENDC}",
+                flush=True,
+            )
+
+        w = get_whois_asn_data(asn_key, timeout_seconds=timeout_seconds)
+        if w.get("error"):
+            errors.append({"asn": asn_key, "error": str(w["error"])})
+            if not acc:
+                still_empty.append(asn_key)
+            continue
+
+        whois_text = w.get("whois_text") or ""
+        probe_ips = extract_ipv4_probe_ips_from_asn_whois(whois_text, limit=8)
+        if len(probe_ips) < 4:
+            ripe_extra = _ripe_inverse_routes_for_asn(asn_key, timeout_seconds=timeout_seconds)
+            if ripe_extra.strip():
+                whois_text = whois_text + "\n\n" + ripe_extra
+                probe_ips = extract_ipv4_probe_ips_from_asn_whois(whois_text, limit=8)
+
+        pools = collect_bgp_pools_for_asn(
+            asn_key,
+            whois_text=whois_text,
+            probe_ips=probe_ips,
+            timeout_seconds=timeout_seconds,
+        )
+
+        if pools:
+            entry["ip_pools"] = pools
+            entry["last_checked"] = today
+            note = f"pools refreshed {today} (BGP/WHOIS, /{MIN_POOL_PREFIXLEN}+)"
+            prev = (entry.get("notes") or "").strip()
+            entry["notes"] = f"{prev} | {note}" if prev else note
+            refreshed += 1
+        elif not acc:
+            still_empty.append(asn_key)
+
+        if sleep_between > 0:
+            time.sleep(sleep_between)
+
+    update_database_metadata(database)
+    return {
+        "refreshed": refreshed,
+        "still_empty": still_empty,
+        "errors": errors,
+    }
+
+
+def maintain_asn_database(database: Dict, *, refresh_pools: bool = True) -> Dict:
+    """Dedupe ASN rows, prune coarse pools, optional BGP/WHOIS pool refresh, validate."""
+    merge_groups = dedupe_asn_database(database)
+    coarse_removed = prune_coarse_pools_from_database(database)
+    pool_refresh: Optional[Dict] = None
+    if refresh_pools:
+        pool_refresh = refresh_asn_pools_database(database, only_empty=False, verbose=True)
+    update_database_metadata(database)
+    report = validate_asn_database(database)
+    report["maintenance"] = {
+        "merge_groups": merge_groups,
+        "coarse_pools_removed": coarse_removed,
+        "maintained_at": datetime.now().isoformat(),
+    }
+    if pool_refresh is not None:
+        report["pool_refresh"] = pool_refresh
+    database.setdefault("metadata", {})["last_maintenance"] = report["maintenance"]
+    return report
+
+
+def print_database_maintenance_report(report: Dict) -> None:
+    """TTY summary after maintain_asn_database / menu item 6."""
+    maint = report.get("maintenance") or {}
+    stats = report.get("stats") or {}
+    print(f"\n{Colors.BOLD}{t('db_maint_title')}{Colors.ENDC}")
+    print(t("db_maint_merged").format(n=maint.get("merge_groups", 0)))
+    print(t("db_maint_coarse").format(n=maint.get("coarse_pools_removed", 0), min=MIN_POOL_PREFIXLEN))
+    print(t("db_maint_asns").format(n=stats.get("asn_rows", 0)))
+    print(t("db_maint_pools").format(n=stats.get("acceptable_pools", 0)))
+    empty_n = len(stats.get("empty_pool_asns") or [])
+    if empty_n:
+        print(f"{Colors.WARNING}{t('db_maint_empty').format(n=empty_n)}{Colors.ENDC}")
+        print(f"{Colors.DIM}{t('db_maint_empty_hint')}{Colors.ENDC}")
+    issues = report.get("issues") or []
+    if issues:
+        print(f"{Colors.FAIL}{t('db_maint_issues').format(n=len(issues))}{Colors.ENDC}")
+        for line in issues[:8]:
+            print(f"  {Colors.FAIL}{line}{Colors.ENDC}")
+        if len(issues) > 8:
+            print(f"  {Colors.DIM}… +{len(issues) - 8}{Colors.ENDC}")
+    else:
+        print(f"{Colors.OKGREEN}{t('db_maint_ok')}{Colors.ENDC}")
+    pool_ref = report.get("pool_refresh")
+    if pool_ref:
+        print(
+            t("db_refresh_done").format(
+                ok=pool_ref.get("refreshed", 0),
+                empty=len(pool_ref.get("still_empty") or []),
+                err=len(pool_ref.get("errors") or []),
+            )
+        )
+
+
 def perform_database_update(database: Dict) -> tuple[bool, Optional[str]]:
-    """Run database maintenance update and save."""
+    """Run full ASN database maintenance (dedupe, prune coarse pools, metadata) and save."""
     try:
-        update_database_metadata(database)
+        report = maintain_asn_database(database)
         today = datetime.now().strftime("%Y-%m-%d")
-        metadata = database.setdefault('metadata', {})
-        metadata['last_update_check'] = today
-        metadata['next_update_prompt_after'] = today
+        metadata = database.setdefault("metadata", {})
+        metadata["last_update_check"] = today
+        metadata["next_update_prompt_after"] = today
         save_database(database)
+        print_database_maintenance_report(report)
         return True, None
     except Exception as exc:
         return False, str(exc)
@@ -855,7 +1172,10 @@ def maybe_prompt_database_update(database: Dict) -> None:
 def get_ip_geolocation(ip: str) -> Optional[Dict]:
     """Get geolocation data for an IP address using ip-api.com"""
     try:
-        url = f"http://ip-api.com/json/{ip}?fields=status,country,countryCode,region,city,isp,org,as,reverse"
+        url = (
+            f"http://ip-api.com/json/{ip}"
+            "?fields=status,country,countryCode,region,city,isp,org,as,reverse,proxy,hosting,mobile"
+        )
         req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
         with urllib.request.urlopen(req, timeout=5) as response:
             data = json.loads(response.read().decode('utf-8'))
@@ -870,6 +1190,10 @@ def get_ip_geolocation(ip: str) -> Optional[Dict]:
                     'isp': data.get('isp'),
                     'org': data.get('org'),
                     'asn': data.get('as'),
+                    'proxy': bool(data.get('proxy')),
+                    'hosting': bool(data.get('hosting')),
+                    'mobile': bool(data.get('mobile')),
+                    'reverse': (data.get('reverse') or '').strip() or None,
                     'success': True
                 }
             else:
@@ -1284,6 +1608,7 @@ def offer_network_tools_menu(target_ip: str) -> None:
         print(f"{Colors.OKCYAN}{t('tools_2')}{Colors.ENDC}")
         print(f"{Colors.OKCYAN}{t('tools_3')}{Colors.ENDC}")
         print(f"{Colors.OKCYAN}{t('tools_4')}{Colors.ENDC}")
+        print(f"{Colors.OKCYAN}{t('tools_5')}{Colors.ENDC}")
         print(f"{Colors.OKCYAN}{t('tools_0')}{Colors.ENDC}")
         try:
             choice = input(f"{Colors.WARNING}{t('tools_prompt')}{Colors.ENDC}").strip()
@@ -1322,6 +1647,11 @@ def offer_network_tools_menu(target_ip: str) -> None:
             url = f"https://{target_ip}/"
             rep = owasp_toolkit.check_secure_headers(url, lang=lang)
             owasp_toolkit.print_secure_headers_report(rep, lang=lang)
+        elif choice == "5":
+            lang = CURRENT_LANGUAGE if CURRENT_LANGUAGE in ("en", "ru") else "en"
+            owasp_toolkit.set_context(ip=target_ip)
+            rep = owasp_toolkit.check_tls(target_ip, lang=lang)
+            owasp_toolkit.print_tls_report(rep, lang=lang)
         else:
             print(f"{Colors.WARNING}{t('tools_invalid')}{Colors.ENDC}")
 
@@ -1473,11 +1803,193 @@ def get_whois_data(ip: str, timeout_seconds: int = 20, whois_server: Optional[st
 
 def normalize_asn_key(raw: str) -> Optional[str]:
     """Return canonical ``AS<number>`` or None if the string is not a plain ASN."""
-    s = (raw or "").strip().upper().replace(" ", "")
-    num = s[2:] if s.startswith("AS") else s
+    s = (raw or "").strip().replace(" ", "")
+    if not s:
+        return None
+    upper = s.upper()
+    num = upper[2:] if upper.startswith("AS") else upper
     if not num.isdigit():
         return None
     return f"AS{int(num)}"
+
+
+CYMRU_WHOIS_HOST = "whois.cymru.com"
+
+
+def _parse_cymru_bgp_row(line: str) -> Optional[Dict]:
+    stripped = line.strip()
+    if not stripped or "|" not in stripped:
+        return None
+    if stripped.startswith("AS ") or "BGP Prefix" in stripped:
+        return None
+    parts = [part.strip() for part in stripped.split("|")]
+    if len(parts) < 7 or not parts[0].isdigit():
+        return None
+    asn_number = int(parts[0])
+    return {
+        "asn": f"AS{asn_number}",
+        "asn_number": asn_number,
+        "ip": parts[1],
+        "bgp_prefix": parts[2],
+        "country_code": parts[3],
+        "registry": parts[4],
+        "allocated": parts[5],
+        "as_name": parts[6],
+        "source": "team-cymru",
+    }
+
+
+def parse_cymru_bgp_verbose(whois_text: str) -> Optional[Dict]:
+    """Parse Team Cymru ``whois -h whois.cymru.com " -v <IP>"`` table output."""
+    for line in (whois_text or "").splitlines():
+        row = _parse_cymru_bgp_row(line)
+        if row:
+            return row
+    return None
+
+
+def pool_prefixlen(cidr: str) -> Optional[int]:
+    try:
+        net = ipaddress.ip_network(cidr, strict=False)
+        return net.prefixlen
+    except ValueError:
+        return None
+
+
+def normalize_pool_cidr(cidr: str) -> Optional[str]:
+    try:
+        net = ipaddress.ip_network((cidr or "").strip(), strict=False)
+        if isinstance(net, ipaddress.IPv4Network):
+            return str(net)
+    except ValueError:
+        return None
+    return None
+
+
+def is_acceptable_pool(cidr: str) -> bool:
+    plen = pool_prefixlen(cidr)
+    return plen is not None and plen >= MIN_POOL_PREFIXLEN
+
+
+def extract_ipv4_route_cidrs_from_whois(whois_text: str) -> List[str]:
+    """Collect IPv4 route: objects; most specific first; drop /8–/19."""
+    seen: set[str] = set()
+    out: List[str] = []
+    for m in re.finditer(
+        r"(?im)^\s*route:\s*(\d{1,3}(?:\.\d{1,3}){3}/\d{1,2})\s*$",
+        whois_text or "",
+    ):
+        cidr = normalize_pool_cidr(m.group(1).strip())
+        if not cidr or not is_acceptable_pool(cidr) or cidr in seen:
+            continue
+        seen.add(cidr)
+        out.append(cidr)
+    out.sort(key=lambda c: pool_prefixlen(c) or 0, reverse=True)
+    return out
+
+
+def collect_bgp_pools_for_asn(
+    asn_key: str,
+    *,
+    whois_text: str = "",
+    probe_ips: Optional[List[str]] = None,
+    timeout_seconds: int = 15,
+) -> List[str]:
+    """
+    Build IP pool list from WHOIS ``route:`` objects and live Cymru BGP prefix per probe IP.
+    Rejects aggregates broader than MIN_POOL_PREFIXLEN (/8-style false matches).
+    """
+    asn_norm = normalize_asn_key(asn_key)
+    if not asn_norm:
+        return []
+
+    pools: set[str] = set()
+    for cidr in extract_ipv4_route_cidrs_from_whois(whois_text):
+        pools.add(cidr)
+
+    if len(pools) < 4:
+        ripe_routes = _ripe_inverse_routes_for_asn(asn_norm, timeout_seconds=timeout_seconds)
+        for cidr in extract_ipv4_route_cidrs_from_whois(ripe_routes):
+            pools.add(cidr)
+
+    for ip in (probe_ips or [])[:16]:
+        bgp = bgp_lookup_ip(ip, timeout_seconds=timeout_seconds)
+        if not bgp.get("success"):
+            continue
+        live_asn = normalize_asn_key(bgp.get("asn"))
+        if live_asn and live_asn != asn_norm:
+            continue
+        cidr = normalize_pool_cidr(bgp.get("bgp_prefix") or "")
+        if cidr and is_acceptable_pool(cidr):
+            pools.add(cidr)
+
+    ordered = sorted(pools, key=lambda c: pool_prefixlen(c) or 0, reverse=True)
+    return ordered[:MAX_POOLS_STORE_PER_ASN]
+
+
+def bgp_lookup_ip(ip: str, timeout_seconds: int = 15) -> Dict:
+    """Live BGP origin for *ip* via Team Cymru (one ``whois`` subprocess)."""
+    try:
+        ipaddress.ip_address(ip)
+    except ValueError:
+        return {"success": False, "error": f"invalid IP: {ip}"}
+
+    raw = _run_whois_raw_query(
+        f" -v {ip}",
+        whois_server=CYMRU_WHOIS_HOST,
+        timeout_seconds=timeout_seconds,
+    )
+    if raw.get("error"):
+        return {"success": False, "error": raw["error"]}
+
+    parsed = parse_cymru_bgp_verbose(raw.get("stdout") or "")
+    if not parsed:
+        return {"success": False, "error": "no BGP origin in Team Cymru response"}
+
+    return {"success": True, **parsed}
+
+
+def print_bgp_origin_verification(
+    ip: str,
+    *,
+    expected_asn: Optional[str] = None,
+    geo_asn: Optional[str] = None,
+    timeout_seconds: int = 15,
+) -> Dict:
+    """Query live BGP origin and compare with local DB / geo ASN when provided."""
+    print(f"{Colors.OKCYAN}{t('bgp_lookup_running')}{Colors.ENDC}")
+    bgp = bgp_lookup_ip(ip, timeout_seconds=timeout_seconds)
+    if not bgp.get("success"):
+        print(f"{Colors.WARNING}{t('bgp_origin_lookup_failed')}{bgp.get('error', 'unknown')}{Colors.ENDC}")
+        return bgp
+
+    print(f"\n{Colors.BOLD}{t('bgp_origin_title')}{Colors.ENDC}")
+    print(f"  {t('bgp_origin_asn')}{Colors.OKGREEN}{bgp['asn']}{Colors.ENDC}")
+    print(f"  {t('bgp_origin_prefix')}{bgp.get('bgp_prefix', 'N/A')}")
+    print(f"  {t('bgp_origin_registry')}{bgp.get('registry', 'N/A')}")
+    if bgp.get("as_name"):
+        print(f"  {t('bgp_origin_as_name')}{bgp['as_name']}")
+
+    expected_key = normalize_asn_key(expected_asn) if expected_asn else None
+    geo_key = normalize_asn_key(geo_asn) if geo_asn else None
+    live_key = bgp["asn"]
+
+    bgp["matches_db"] = expected_key is not None and expected_key == live_key
+    bgp["matches_geo"] = geo_key is None or geo_key == live_key
+
+    if expected_key:
+        if bgp["matches_db"]:
+            print(f"  {Colors.OKGREEN}{t('bgp_origin_match_db')}{Colors.ENDC}")
+        else:
+            print(
+                f"  {Colors.FAIL}{t('bgp_origin_mismatch_db').format(expected=expected_key, live=live_key)}{Colors.ENDC}"
+            )
+    if geo_key and geo_key != live_key:
+        print(
+            f"  {Colors.WARNING}{t('bgp_origin_mismatch_geo').format(geo=geo_key)}{Colors.ENDC}"
+        )
+
+    return bgp
 
 
 def _ipv4_first_probe_host(net: ipaddress.IPv4Network) -> str:
@@ -1528,8 +2040,8 @@ def extract_ipv4_probe_ips_from_asn_whois(whois_text: str, limit: int = 8) -> Li
 
 
 def first_ipv4_route_cidr_from_asn_whois(whois_text: str) -> Optional[str]:
-    m = re.search(r"(?im)^\s*route:\s*(\d{1,3}(?:\.\d{1,3}){3}/\d{1,2})\s*$", whois_text or "")
-    return m.group(1).strip() if m else None
+    routes = extract_ipv4_route_cidrs_from_whois(whois_text)
+    return routes[0] if routes else None
 
 
 def _ripe_inverse_routes_for_asn(asn_key: str, timeout_seconds: int = 15) -> str:
@@ -1547,9 +2059,54 @@ def _ripe_inverse_routes_for_asn(asn_key: str, timeout_seconds: int = 15) -> str
 def _default_ipv4_pool_from_ip(ip: str) -> str:
     addr = ipaddress.ip_address(ip)
     if isinstance(addr, ipaddress.IPv4Address):
-        first = str(addr).split(".")[0]
-        return f"{first}.0.0.0/8"
+        return str(ipaddress.IPv4Network(f"{addr}/24", strict=False))
     return f"{ip}/128"
+
+
+def ipv4_pool_from_whois(whois_text: str, ip: str) -> str:
+    """Derive the most specific IPv4 pool from WHOIS text, else /24 for the address."""
+    try:
+        addr = ipaddress.ip_address(ip)
+        if not isinstance(addr, ipaddress.IPv4Address):
+            return f"{ip}/128"
+    except ValueError:
+        return f"{ip}/32"
+
+    candidates: List[ipaddress.IPv4Network] = []
+    text = whois_text or ""
+
+    for m in re.finditer(
+        r"(?im)^\s*(?:route|cidr):\s*(\d{1,3}(?:\.\d{1,3}){3}/\d{1,2})\s*$",
+        text,
+    ):
+        try:
+            net = ipaddress.ip_network(m.group(1).strip(), strict=False)
+            if isinstance(net, ipaddress.IPv4Network) and addr in net:
+                candidates.append(net)
+        except ValueError:
+            continue
+
+    for m in re.finditer(
+        r"(?im)^\s*(?:inetnum|netrange):\s*(\d{1,3}(?:\.\d{1,3}){3})\s*-\s*(\d{1,3}(?:\.\d{1,3}){3})\s*$",
+        text,
+    ):
+        try:
+            start = ipaddress.ip_address(m.group(1).strip())
+            end = ipaddress.ip_address(m.group(2).strip())
+            if not isinstance(start, ipaddress.IPv4Address) or not (start <= addr <= end):
+                continue
+            for net in ipaddress.summarize_address_range(start, end):
+                if isinstance(net, ipaddress.IPv4Network) and addr in net:
+                    candidates.append(net)
+                    break
+        except ValueError:
+            continue
+
+    acceptable = [n for n in candidates if n.prefixlen >= MIN_POOL_PREFIXLEN]
+    if acceptable:
+        return str(max(acceptable, key=lambda n: n.prefixlen))
+
+    return _default_ipv4_pool_from_ip(ip)
 
 
 def get_whois_asn_data(
@@ -1762,32 +2319,41 @@ def investigate_unknown_asn(asn_input: str, database: Dict, *, interactive: bool
         print(f"{Colors.OKCYAN}{t('unknown_asn_add_skipped')}{Colors.ENDC}")
         return results_ok
 
-    route_cidr = first_ipv4_route_cidr_from_asn_whois(w.get("whois_text") or "")
-    pool: Optional[str] = route_cidr
     anchor_ip: Optional[str] = None
-
     if results_ok:
-        ip0 = results_ok[0].get("ip")
-        if ip0:
-            anchor_ip = str(ip0)
-        if not pool and anchor_ip:
-            pool = _default_ipv4_pool_from_ip(anchor_ip)
+        anchor_ip = str(results_ok[0].get("ip") or "")
     elif probe_ips:
         anchor_ip = probe_ips[0]
-        if not pool:
-            pool = _default_ipv4_pool_from_ip(anchor_ip)
-    elif route_cidr:
+    elif first_ipv4_route_cidr_from_asn_whois(w.get("whois_text") or ""):
         try:
-            net = ipaddress.ip_network(route_cidr, strict=False)
+            net = ipaddress.ip_network(first_ipv4_route_cidr_from_asn_whois(w["whois_text"]), strict=False)
             if isinstance(net, ipaddress.IPv4Network):
                 anchor_ip = _ipv4_first_probe_host(net)
-                pool = route_cidr
         except ValueError:
             pass
 
-    if not pool or not anchor_ip:
+    if not anchor_ip:
         print(f"{Colors.FAIL}{t('unknown_asn_add_skipped')}{Colors.ENDC} ({t('unknown_asn_no_prefixes')})")
         return results_ok
+
+    print(f"{Colors.OKCYAN}{t('bgp_pools_collecting', asn=asn_key)}{Colors.ENDC}")
+    pools = collect_bgp_pools_for_asn(
+        asn_key,
+        whois_text=w.get("whois_text") or "",
+        probe_ips=probe_ips or ([anchor_ip] if anchor_ip else None),
+    )
+    if not pools:
+        fallback = _default_ipv4_pool_from_ip(anchor_ip)
+        pools = [fallback]
+        print(f"{Colors.WARNING}{t('bgp_pools_none')}{Colors.ENDC}")
+    else:
+        print(
+            f"{Colors.OKGREEN}{t('bgp_pools_found', n=len(pools), min=MIN_POOL_PREFIXLEN)}{Colors.ENDC}"
+        )
+        for sample in pools[:5]:
+            print(f"  {Colors.DIM}{sample}{Colors.ENDC}")
+        if len(pools) > 5:
+            print(f"  {Colors.DIM}… +{len(pools) - 5} more{Colors.ENDC}")
 
     cc = (results_ok[0].get("actual_country") if results_ok else None) or w.get("country")
     if not cc:
@@ -1800,7 +2366,7 @@ def investigate_unknown_asn(asn_input: str, database: Dict, *, interactive: bool
     )
     org = w.get("org") or w.get("as_name") or asn_key
 
-    if update_database_entry(database, anchor_ip, asn_key, cc, cname, pool, org):
+    if update_database_entry(database, anchor_ip, asn_key, cc, cname, pools=pools, org=org):
         print(f"{Colors.OKGREEN}{t('unknown_asn_added')}{Colors.ENDC}")
     else:
         print(f"{Colors.FAIL}{t('unknown_ip_not_added')}{Colors.ENDC}")
@@ -1832,6 +2398,126 @@ def assess_data_authenticity(
         "whois_rir": rir,
     }
 
+def cli_bgp_lookup_enabled(args, *, for_range: bool = False) -> bool:
+    """Resolve --bgp / --no-bgp for geo checks. Default: on for single IP/ASN, off for ranges."""
+    if getattr(args, "no_bgp", False):
+        return False
+    if getattr(args, "bgp", False):
+        return True
+    return not for_range
+
+
+def cli_pdns_lookup_enabled(args, *, for_range: bool = False) -> bool:
+    """Resolve --pdns / --no-pdns. Default: on for single IP/ASN, off for ranges."""
+    if getattr(args, "no_pdns", False):
+        return False
+    if getattr(args, "pdns", False):
+        return True
+    return not for_range
+
+
+def cli_egress_check_enabled(args, *, for_range: bool = False) -> bool:
+    """Resolve --egress / --no-egress. Default: on for single IP/ASN, off for ranges."""
+    if getattr(args, "no_egress", False):
+        return False
+    if getattr(args, "egress", False):
+        return True
+    return not for_range
+
+
+def run_ptr_range_scan_cli(
+    start: str,
+    end: str,
+    *,
+    max_ips: int = 256,
+    qps: float = 10.0,
+    save: bool = False,
+) -> Dict:
+    """Bulk PTR sweep; returns session dict (not geo scan results list)."""
+    lang = CURRENT_LANGUAGE if CURRENT_LANGUAGE in ("en", "ru") else "en"
+    session = ptr_scan.scan_ptr_range(
+        start,
+        end,
+        max_ips=max_ips,
+        qps=qps,
+        show_progress=True,
+        lang=lang,
+    )
+    ptr_scan.print_ptr_scan_report(
+        session,
+        lang=lang,
+        colors={
+            "bold": Colors.BOLD,
+            "ok": Colors.OKGREEN,
+            "warn": Colors.WARNING,
+            "fail": Colors.FAIL,
+            "dim": "\033[2m",
+            "end": Colors.ENDC,
+        },
+    )
+    if save and session.get("success"):
+        try:
+            path = ptr_scan.save_ptr_session(session)
+            print(f"{Colors.OKGREEN}{ptr_scan.msg(lang, 'save_ok', path=path)}{Colors.ENDC}")
+        except OSError as exc:
+            print(f"{Colors.FAIL}{ptr_scan.msg(lang, 'save_fail', err=exc)}{Colors.ENDC}")
+    return session
+
+
+def run_egress_check_for_ip(ip: str, geo_data: Dict) -> Dict:
+    """Tor exit, ip-api proxy/hosting/mobile, ipinfo bogon, ASN heuristics."""
+    print(f"{Colors.OKCYAN}{t('egress_check_running')}{Colors.ENDC}")
+    lang = CURRENT_LANGUAGE if CURRENT_LANGUAGE in ("en", "ru") else "en"
+    report = ip_egress_check.lookup_egress_context(ip, geo_data, lang=lang)
+    ip_egress_check.print_egress_report(
+        report,
+        lang=lang,
+        colors={
+            "bold": Colors.BOLD,
+            "ok": Colors.OKGREEN,
+            "warn": Colors.WARNING,
+            "fail": Colors.FAIL,
+            "end": Colors.ENDC,
+        },
+    )
+    return report
+
+
+def get_pdns_api_keys() -> Dict[str, str]:
+    """Return optional passive-DNS provider keys from config and environment."""
+    cfg = load_enrichment_config()
+    return {
+        "virustotal": str(cfg.get("virustotal_api_key", "")).strip() or os.getenv("VIRUSTOTAL_API_KEY", "").strip(),
+        "securitytrails": str(cfg.get("securitytrails_api_key", "")).strip()
+        or os.getenv("SECURITYTRAILS_API_KEY", "").strip(),
+    }
+
+
+def run_pdns_lookup_for_ip(ip: str) -> Dict:
+    """Query and print passive DNS / routing history for an IP."""
+    print(f"{Colors.OKCYAN}{t('pdns_lookup_running')}{Colors.ENDC}")
+    keys = get_pdns_api_keys()
+    lang = CURRENT_LANGUAGE if CURRENT_LANGUAGE in ("en", "ru") else "en"
+    report = pdns_lookup.lookup_passive_dns(
+        ip,
+        virustotal_api_key=keys.get("virustotal"),
+        securitytrails_api_key=keys.get("securitytrails"),
+        lang=lang,
+    )
+    pdns_lookup.print_pdns_report(
+        report,
+        lang=lang,
+        colors={
+            "bold": Colors.BOLD,
+            "ok": Colors.OKGREEN,
+            "warn": Colors.WARNING,
+            "fail": Colors.FAIL,
+            "end": Colors.ENDC,
+        },
+    )
+    return report
+
+
 def parse_cli_args():
     """Parse command-line arguments for non-interactive mode."""
     parser = argparse.ArgumentParser(
@@ -1848,6 +2534,58 @@ def parse_cli_args():
     parser.add_argument("--max-ips", type=int, default=256, help="Maximum IPs to scan in range (default: 256)")
     parser.add_argument("--auto-reclass", action="store_true", help="Auto-confirm reclassification (no prompts)")
     parser.add_argument("--quiet", action="store_true", help="Suppress non-essential output")
+    bgp_opts = parser.add_mutually_exclusive_group()
+    bgp_opts.add_argument(
+        "--bgp",
+        action="store_true",
+        help="Enable live BGP origin lookup (Team Cymru whois -h whois.cymru.com). "
+        "Default: on for -i/--asn, off for -r (one extra whois per IP).",
+    )
+    bgp_opts.add_argument(
+        "--no-bgp",
+        action="store_true",
+        help="Disable live BGP origin lookup (skip Team Cymru whois).",
+    )
+    pdns_opts = parser.add_mutually_exclusive_group()
+    pdns_opts.add_argument(
+        "--pdns",
+        action="store_true",
+        help="Enable passive/historical DNS (RIPE Stat + optional VirusTotal/SecurityTrails). "
+        "Default: on for -i/--asn, off for -r.",
+    )
+    pdns_opts.add_argument(
+        "--no-pdns",
+        action="store_true",
+        help="Disable passive DNS / routing-history lookup.",
+    )
+    egress_opts = parser.add_mutually_exclusive_group()
+    egress_opts.add_argument(
+        "--egress",
+        action="store_true",
+        help="Egress/NAT check: Tor exits, ip-api proxy/hosting, ipinfo bogon. "
+        "Default: on for -i/--asn, off for -r.",
+    )
+    egress_opts.add_argument(
+        "--no-egress",
+        action="store_true",
+        help="Skip Tor / proxy / datacenter egress checks.",
+    )
+    parser.add_argument(
+        "--ptr-scan",
+        action="store_true",
+        help="Bulk reverse DNS (PTR) for -r range (rate-limited; use --ptr-qps). Skips geo per-IP loop.",
+    )
+    parser.add_argument(
+        "--ptr-qps",
+        type=float,
+        default=10.0,
+        help="Max PTR lookups per second for --ptr-scan (default: 10).",
+    )
+    parser.add_argument(
+        "--ptr-save",
+        action="store_true",
+        help="Save PTR sweep JSON to ptr_sessions/ (also use -s for scan_results).",
+    )
     parser.add_argument(
         "--trace-monitor",
         metavar="HOST",
@@ -1879,11 +2617,18 @@ def parse_cli_args():
         help="ICMP ping + HTTP download/upload throughput (Cloudflare endpoints, approximate).",
     )
     parser.add_argument(
+        "--speed-streams",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Parallel HTTP streams for --speed-test (default 4, or FNKIT_SPEED_STREAMS).",
+    )
+    parser.add_argument(
         "--trace-replay",
         metavar="FILE",
         dest="trace_replay",
         default=None,
-        help="Replay a JSON session saved after --trace-monitor (see trace_sessions/).",
+        help="Replay a JSON session saved after --trace-monitor (see data/sessions/trace/).",
     )
     parser.add_argument(
         "--trace-replay-delay",
@@ -1943,7 +2688,7 @@ def parse_cli_args():
     parser.add_argument("--dns", metavar="DOMAIN", default=None, help="DNS graph crawl from domain (needs dnspython).")
     parser.add_argument("--dns-depth", type=int, default=4, help="Max BFS depth for --dns (default: 4).")
     parser.add_argument("--dns-max-domains", type=int, default=500, help="Max domains for --dns (default: 500).")
-    parser.add_argument("--dns-save", action="store_true", help="Save DNS session JSON to dns_sessions/.")
+    parser.add_argument("--dns-save", action="store_true", help="Save DNS session JSON to data/sessions/dns/.")
     parser.add_argument("--dns-wordlist", metavar="FILE", default=None, help="Subdomain wordlist for --dns.")
     parser.add_argument("--dns-crtsh", action="store_true", help="Passive subdomains from crt.sh for --dns.")
     parser.add_argument("--dns-qps", type=float, default=20.0, help="Max DNS queries per second (default: 20).")
@@ -1956,7 +2701,24 @@ def parse_cli_args():
         default=None,
         help="Built-in Secure Headers check (OWASP-aligned, no extra install).",
     )
+    parser.add_argument(
+        "--owasp-tls",
+        metavar="HOST",
+        default=None,
+        help="TLS check on :443 (cert expiry, cipher, TLSv1.0/1.1/SSLv3 probe; stdlib ssl).",
+    )
     parser.add_argument("--owasp-amass", metavar="DOMAIN", default=None, help="Run passive Amass enum (needs amass in PATH).")
+    parser.add_argument(
+        "--owasp-takeover",
+        action="store_true",
+        help="After --owasp-amass, check CNAME dangling / takeover fingerprints (needs dnspython).",
+    )
+    parser.add_argument(
+        "--owasp-takeover-file",
+        metavar="FILE",
+        default=None,
+        help="Host list (one FQDN per line) for subdomain takeover check.",
+    )
     parser.add_argument(
         "--owasp-nettacker",
         metavar="HOST",
@@ -1967,7 +2729,7 @@ def parse_cli_args():
     parser.add_argument(
         "--owasp-pipeline",
         action="store_true",
-        help="Run headers + optional Amass + WSTG (use with --owasp-domain / --owasp-ip).",
+        help="Run headers + TLS + optional Amass + WSTG (use with --owasp-domain / --owasp-ip).",
     )
     parser.add_argument("--owasp-ip", metavar="IP", default=None, help="Target IP for --owasp-pipeline.")
     parser.add_argument("--owasp-domain", metavar="DOMAIN", default=None, help="Target domain for --owasp-pipeline / Amass.")
@@ -1976,7 +2738,7 @@ def parse_cli_args():
         action="store_true",
         help="With --owasp-pipeline, also run Nettacker port_scan.",
     )
-    parser.add_argument("--owasp-save", action="store_true", help="Save OWASP pipeline session to owasp_sessions/.")
+    parser.add_argument("--owasp-save", action="store_true", help="Save OWASP pipeline session to data/sessions/owasp/.")
     parser.add_argument(
         "--check-deps",
         action="store_true",
@@ -1995,6 +2757,16 @@ def parse_cli_args():
         action="store_true",
         help="With --check-deps: print install hints from manifest.",
     )
+    parser.add_argument(
+        "--maintain-db",
+        action="store_true",
+        help="Maintain asn_database.json (dedupe ASN, prune coarse pools, fix metadata) and exit.",
+    )
+    parser.add_argument(
+        "--validate-db",
+        action="store_true",
+        help="Validate asn_database.json schema/counters (no writes) and exit.",
+    )
     return parser.parse_args()
 
 def save_results(results: List[Dict]) -> bool:
@@ -2012,13 +2784,133 @@ def save_results(results: List[Dict]) -> bool:
         print(f"{Colors.FAIL}Failed to save results: {e}{Colors.ENDC}")
         return False
 
-def get_best_pool_match(ip: str, database: Dict):
-    """Return the most specific ASN pool matches for an IP."""
+def find_asn_entry(database: Dict, asn_raw: str) -> Optional[Dict]:
+    """Return the single ASN row for this number (after dedupe there is at most one)."""
+    key = normalize_asn_key(asn_raw)
+    if not key:
+        return None
+    for entry in database.get("asn_data", []):
+        if normalize_asn_key(entry.get("asn")) == key:
+            return entry
+    return None
+
+
+def _pool_match_score(
+    item: tuple,
+    *,
+    geo_asn: Optional[str] = None,
+    geo_country: Optional[str] = None,
+    bgp_asn: Optional[str] = None,
+) -> int:
+    """Higher score = preferred when several pools share the same prefix length."""
+    asn_entry, _pool, prefixlen = item
+    score = int(prefixlen) * 100
+    asn_norm = normalize_asn_key(asn_entry.get("asn"))
+    geo_asn_norm = normalize_asn_key(geo_asn) if geo_asn else None
+    bgp_asn_norm = normalize_asn_key(bgp_asn) if bgp_asn else None
+    geo_cc = normalize_country_code(geo_country)
+    expected_cc = normalize_country_code(asn_entry.get("expected_country"))
+
+    if geo_cc and expected_cc and geo_cc == expected_cc:
+        score += 50_000
+    if geo_asn_norm and asn_norm and geo_asn_norm == asn_norm:
+        score += 10_000
+    if bgp_asn_norm and asn_norm and bgp_asn_norm == asn_norm:
+        score += 20_000
+    if asn_entry.get("verified"):
+        score += 500
+    return score
+
+
+def _merge_asn_entry_group(asn_key: str, group: List[Dict]) -> Dict:
+    """Merge duplicate rows that share the same ASN number."""
+
+    def _entry_rank(entry: Dict) -> tuple:
+        acceptable = [p for p in entry.get("ip_pools", []) if is_acceptable_pool(p)]
+        max_plen = max((pool_prefixlen(p) or 0 for p in acceptable), default=0)
+        return (len(acceptable), max_plen, entry.get("verified", False), entry.get("last_checked", ""))
+
+    primary = max(group, key=_entry_rank)
+    merged = dict(primary)
+    merged["asn"] = asn_key
+
+    pools: set[str] = set()
+    for entry in group:
+        for raw in entry.get("ip_pools", []):
+            cidr = normalize_pool_cidr(raw)
+            if cidr and is_acceptable_pool(cidr):
+                pools.add(cidr)
+    merged["ip_pools"] = sorted(pools, key=lambda c: pool_prefixlen(c) or 0, reverse=True)[
+        :MAX_POOLS_STORE_PER_ASN
+    ]
+
+    countries = {normalize_country_code(e.get("expected_country")) for e in group} - {None}
+    owners = [e.get("owner") for e in group if e.get("owner")]
+    if len(countries) > 1:
+        merged["verified"] = False
+        merged["notes"] = (
+            f"Merged {len(group)} duplicate {asn_key} rows; conflicting countries "
+            f"{sorted(countries)}. Owners: {owners}. Pool match uses geo/BGP disambiguation."
+        )
+    elif len(set(owners)) > 1:
+        merged["notes"] = f"Merged duplicate {asn_key}; owners were: {owners}"
+
+    return merged
+
+
+def dedupe_asn_database(database: Dict) -> int:
+    """Collapse multiple ``asn_data`` rows with the same ASN number. Returns merge group count."""
+    grouped: Dict[str, List[Dict]] = {}
+    for entry in database.get("asn_data", []):
+        key = normalize_asn_key(entry.get("asn"))
+        if not key:
+            continue
+        grouped.setdefault(key, []).append(entry)
+
+    merged_rows: List[Dict] = []
+    merge_groups = 0
+    for key in sorted(grouped.keys()):
+        group = grouped[key]
+        if len(group) > 1:
+            merge_groups += 1
+            merged_rows.append(_merge_asn_entry_group(key, group))
+        else:
+            row = dict(group[0])
+            row["asn"] = key
+            merged_rows.append(row)
+
+    database["asn_data"] = merged_rows
+    if merge_groups:
+        meta = database.setdefault("metadata", {})
+        meta["total_asns"] = len(merged_rows)
+        meta["total_ip_pools"] = sum(len(a.get("ip_pools", [])) for a in merged_rows)
+        meta["last_updated"] = datetime.now().strftime("%Y-%m-%d")
+        log = meta.setdefault("asn_dedupe_log", [])
+        log.append(
+            {
+                "at": datetime.now().isoformat(),
+                "merge_groups": merge_groups,
+            }
+        )
+    return merge_groups
+
+
+def get_best_pool_match(
+    ip: str,
+    database: Dict,
+    *,
+    geo_asn: Optional[str] = None,
+    geo_country: Optional[str] = None,
+    bgp_asn: Optional[str] = None,
+) -> List[tuple]:
+    """Return the best ASN pool match(es) for an IP, disambiguated by geo/BGP when needed."""
     ip_obj = ipaddress.ip_address(ip)
-    candidates = []
+    candidates: List[tuple] = []
 
     for asn_entry in database["asn_data"]:
         for pool in asn_entry["ip_pools"]:
+            if not is_acceptable_pool(pool):
+                continue
             try:
                 network = ipaddress.ip_network(pool, strict=False)
             except ValueError:
@@ -2030,12 +2922,60 @@ def get_best_pool_match(ip: str, database: Dict):
         return []
 
     best_prefix = max(item[2] for item in candidates)
-    return [item for item in candidates if item[2] == best_prefix]
+    tied = [item for item in candidates if item[2] == best_prefix]
+    if len(tied) == 1:
+        return tied
 
-def update_database_entry(database: Dict, ip: str, asn: str, country_code: str, country_name: str, pool: str, org: str = None) -> bool:
-    """Update or create ASN entry in database"""
+    ranked = sorted(
+        tied,
+        key=lambda item: _pool_match_score(
+            item, geo_asn=geo_asn, geo_country=geo_country, bgp_asn=bgp_asn
+        ),
+        reverse=True,
+    )
+    top = _pool_match_score(ranked[0], geo_asn=geo_asn, geo_country=geo_country, bgp_asn=bgp_asn)
+    winners = [
+        item
+        for item in ranked
+        if _pool_match_score(item, geo_asn=geo_asn, geo_country=geo_country, bgp_asn=bgp_asn) == top
+    ]
+    return winners
+
+def update_database_entry(
+    database: Dict,
+    ip: str,
+    asn: str,
+    country_code: str,
+    country_name: str,
+    pool: Optional[str] = None,
+    org: str = None,
+    *,
+    pools: Optional[List[str]] = None,
+) -> bool:
+    """Update or create ASN entry in database with one or more BGP-derived pools."""
     try:
-        asn_entry = next((a for a in database['asn_data'] if a['asn'] == asn), None)
+        incoming: List[str] = []
+        if pools:
+            incoming.extend(pools)
+        if pool:
+            incoming.append(pool)
+        normalized: List[str] = []
+        for raw in incoming:
+            cidr = normalize_pool_cidr(raw)
+            if not cidr:
+                continue
+            if not is_acceptable_pool(cidr):
+                plen = pool_prefixlen(cidr)
+                if plen is not None:
+                    print(
+                        f"{Colors.DIM}{t('bgp_pools_coarse_skipped', plen=plen, min=MIN_POOL_PREFIXLEN, pool=cidr)}{Colors.ENDC}"
+                    )
+                continue
+            if cidr not in normalized:
+                normalized.append(cidr)
+
+        asn_norm = normalize_asn_key(asn) or asn
+        asn_entry = find_asn_entry(database, asn_norm)
         
         if asn_entry:
             asn_entry['expected_country'] = country_code
@@ -2045,26 +2985,31 @@ def update_database_entry(database: Dict, ip: str, asn: str, country_code: str, 
             
             if org and org.strip():
                 asn_entry['owner'] = org
-            
-            if pool not in asn_entry['ip_pools']:
-                asn_entry['ip_pools'].append(pool)
+
+            kept = [p for p in asn_entry.get('ip_pools', []) if is_acceptable_pool(p)]
+            for cidr in normalized:
+                if cidr not in kept:
+                    kept.append(cidr)
+            asn_entry['ip_pools'] = kept[:MAX_POOLS_STORE_PER_ASN]
             
             asn_entry['last_checked'] = datetime.now().strftime("%Y-%m-%d")
             asn_entry['notes'] = f"Updated: IP geolocation verified as {country_code} ({country_name})"
         else:
+            if not normalized:
+                normalized = [_default_ipv4_pool_from_ip(ip)]
             new_entry = {
-                'asn': asn,
+                'asn': asn_norm,
                 'owner': org or f"Auto-added from IP {ip}",
                 'country_code': country_code,
                 'country_name': country_name,
                 'region': 'Multi-Regional',
                 'expected_country': country_code,
                 'expected_country_name': country_name,
-                'ip_pools': [pool],
+                'ip_pools': normalized[:MAX_POOLS_STORE_PER_ASN],
                 'check_status': 'active',
                 'last_checked': datetime.now().strftime("%Y-%m-%d"),
                 'verified': False,
-                'notes': f'Auto-added entry for {asn}'
+                'notes': f'Auto-added entry for {asn} (BGP/WHOIS prefixes)'
             }
             database['asn_data'].append(new_entry)
         
@@ -2107,6 +3052,9 @@ def check_single_ip(
     auto_reclass: bool = False,
     interactive_extras: bool = True,
     invoke_unknown_ip_flow: bool = True,
+    bgp_lookup: bool = True,
+    pdns_lookup: bool = True,
+    egress_check: bool = True,
 ) -> Dict:
     """Check a single IP address. When ``interactive_extras`` is True, show abuse (WHOIS) and optional tool menu."""
     print(f"\n{Colors.OKCYAN}{t('checking')}{ip}{Colors.ENDC}")
@@ -2121,6 +3069,12 @@ def check_single_ip(
     if not geo_data['success']:
         print(f"{Colors.FAIL}{t('failed_geo')} {geo_data.get('error')}{Colors.ENDC}")
         return geo_data
+
+    rev = geo_data.get('reverse')
+    if rev:
+        print(f"  {t('ptr_reverse')}{Colors.OKGREEN}{rev}{Colors.ENDC}")
+    else:
+        print(f"  {t('ptr_reverse')}{Colors.WARNING}{t('ptr_none')}{Colors.ENDC}")
     
     result = {
         'ip': ip,
@@ -2134,10 +3088,45 @@ def check_single_ip(
         'geo_data': geo_data,
         'matches': [],
         'mismatches': [],
+        'bgp_origin': None,
+        'passive_dns': None,
+        'egress_context': None,
         '_abuse_shown': False,
     }
-    
-    best_matches = get_best_pool_match(ip, database)
+
+    if egress_check:
+        result['egress_context'] = run_egress_check_for_ip(ip, geo_data)
+
+    best_matches = get_best_pool_match(
+        ip,
+        database,
+        geo_asn=geo_data.get("asn"),
+        geo_country=geo_data.get("country_code"),
+    )
+    pool_match_ambiguous = len(best_matches) > 1
+    expected_db_asn = best_matches[0][0]["asn"] if best_matches else None
+    defer_bgp = invoke_unknown_ip_flow and not best_matches
+    defer_pdns = invoke_unknown_ip_flow and not best_matches
+
+    if bgp_lookup and not defer_bgp:
+        result["bgp_origin"] = print_bgp_origin_verification(
+            ip,
+            expected_asn=expected_db_asn,
+            geo_asn=geo_data.get("asn"),
+        )
+        if len(best_matches) > 1 and result.get("bgp_origin", {}).get("success"):
+            refined = get_best_pool_match(
+                ip,
+                database,
+                geo_asn=geo_data.get("asn"),
+                geo_country=geo_data.get("country_code"),
+                bgp_asn=result["bgp_origin"].get("asn"),
+            )
+            if len(refined) == 1:
+                best_matches = refined
+
+    if pdns_lookup and not defer_pdns:
+        result['passive_dns'] = run_pdns_lookup_for_ip(ip)
 
     if best_matches:
         asn_entry, pool, _ = best_matches[0]
@@ -2145,7 +3134,12 @@ def check_single_ip(
         actual_country = geo_data['country_code']
 
         if len(best_matches) > 1:
-            print(f"{Colors.WARNING}⚠ Multiple equally specific pools matched this IP. Using first match.{Colors.ENDC}")
+            print(f"{Colors.WARNING}{t('pool_match_ambiguous_unresolved')}{Colors.ENDC}")
+        elif pool_match_ambiguous and len(best_matches) == 1:
+            entry = best_matches[0][0]
+            print(
+                f"{Colors.WARNING}{t('pool_match_ambiguous').format(asn=entry['asn'], country=entry.get('expected_country'))}{Colors.ENDC}"
+            )
 
         match_info = {
             'asn': asn_entry['asn'],
@@ -2186,6 +3180,9 @@ def check_single_ip(
                 geo_data.get('isp'),
             )
             print(f"  {t('provider_owner')} {provider_name}")
+            pdns = result.get("passive_dns") or {}
+            for sig in pdns.get("rotation_signals") or []:
+                print(f"  {Colors.WARNING}⚠ {sig}{Colors.ENDC}")
             if interactive_extras:
                 fetch_and_print_abuse_contact(ip)
                 result['_abuse_shown'] = True
@@ -2260,17 +3257,7 @@ def handle_unknown_ip(
             print(f"{Colors.WARNING}{t('unknown_ip_whois_error')}{whois_data['error']}{Colors.ENDC}")
         return
     
-    # Extract pool from IP (example: 83.1.1.1 -> 83.0.0.0/8)
-    try:
-        ip_obj = ipaddress.ip_address(ip)
-        if isinstance(ip_obj, ipaddress.IPv4Address):
-            octets = str(ip_obj).split('.')
-            pool = f"{octets[0]}.0.0.0/8"
-        else:
-            pool = f"{ip}/128"
-    except:
-        pool = f"{ip}/32"
-    
+    pool = ipv4_pool_from_whois(whois_data.get("whois_text") or "", ip)
     detected_asn = whois_data.get('asn', 'UNKNOWN')
     detected_org = whois_data.get('org', 'Unknown Organization')
     detected_country = result.get('actual_country', 'UNKNOWN')
@@ -2286,6 +3273,15 @@ def handle_unknown_ip(
     print(f"{Colors.OKCYAN}{t('unknown_ip_detected_country')}{Colors.ENDC}{detected_country} ({detected_country_name})")
     print(f"{Colors.OKCYAN}Pool: {Colors.ENDC}{pool}")
     print(f"{Colors.OKCYAN}IP: {Colors.ENDC}{ip}")
+
+    if not (result.get('bgp_origin') or {}).get('success'):
+        result['bgp_origin'] = print_bgp_origin_verification(
+            ip,
+            expected_asn=normalize_asn_key(detected_asn) if detected_asn else None,
+            geo_asn=result.get('asn'),
+        )
+    if not (result.get('passive_dns') or {}).get('success'):
+        result['passive_dns'] = run_pdns_lookup_for_ip(ip)
     if interactive_extras and whois_data.get("whois_text"):
         print_abuse_with_rir_fallback(ip, whois_data, whois_timeout=12)
         result["_abuse_shown"] = True
@@ -2324,13 +3320,36 @@ def handle_unknown_ip(
         
         if asn_to_add and asn_to_add != 'UNKNOWN':
             asn_clean = asn_to_add if (asn_to_add.startswith('AS') or asn_to_add == 'none_ASN') else f'AS{asn_to_add}'
+            pools_for_db: List[str] = []
+            if asn_clean != 'none_ASN':
+                print(f"{Colors.OKCYAN}{t('bgp_pools_collecting', asn=asn_clean)}{Colors.ENDC}")
+                pools_for_db = collect_bgp_pools_for_asn(
+                    asn_clean,
+                    whois_text=whois_data.get("whois_text") or "",
+                    probe_ips=[ip],
+                )
+            if not pools_for_db:
+                bgp = result.get("bgp_origin") or {}
+                if bgp.get("success") and bgp.get("bgp_prefix"):
+                    cidr = normalize_pool_cidr(bgp["bgp_prefix"])
+                    if cidr and is_acceptable_pool(cidr):
+                        pools_for_db = [cidr]
+                if not pools_for_db and is_acceptable_pool(pool):
+                    pools_for_db = [normalize_pool_cidr(pool) or pool]
+                if not pools_for_db:
+                    pools_for_db = [_default_ipv4_pool_from_ip(ip)]
+                    print(f"{Colors.WARNING}{t('bgp_pools_none')}{Colors.ENDC}")
+            else:
+                print(
+                    f"{Colors.OKGREEN}{t('bgp_pools_found', n=len(pools_for_db), min=MIN_POOL_PREFIXLEN)}{Colors.ENDC}"
+                )
             success = update_database_entry(
                 database,
                 ip=ip,
                 asn=asn_clean,
                 country_code=detected_country,
                 country_name=detected_country_name,
-                pool=pool,
+                pools=pools_for_db,
                 org=detected_org
             )
             
@@ -2411,9 +3430,9 @@ def reclassify_asn(result: Dict, database: Dict, auto_confirm: bool = False) -> 
         print(f"{Colors.OKCYAN}Policy decision: keep expected country. Database remains unchanged.{Colors.ENDC}")
         return result
     
+    confirm = 'y' if auto_confirm else 'n'
     try:
         if auto_confirm:
-            confirm = 'y'
             print(f"{t('auto_updating')}")
         else:
             confirm = input(f"{Colors.WARNING}{t('confirm')}{Colors.ENDC}")
@@ -2421,13 +3440,26 @@ def reclassify_asn(result: Dict, database: Dict, auto_confirm: bool = False) -> 
         confirm = 'y' if auto_confirm else 'n'
     
     if confirm.lower() == 'y':
-        pool = mismatch['pool']
         org_name = result.get('org')
         target_country = policy.get("target_country") or result['actual_country']
         target_country_name = result['actual_country_name'] if target_country == result['actual_country'] else result['actual_country_name']
-        
-        if update_database_entry(database, ip, mismatch['asn'], target_country,
-                                target_country_name, pool, org_name):
+        pools_rec = collect_bgp_pools_for_asn(mismatch['asn'], probe_ips=[ip])
+        if not pools_rec:
+            fallback = mismatch.get('pool') or _default_ipv4_pool_from_ip(ip)
+            if is_acceptable_pool(fallback):
+                pools_rec = [normalize_pool_cidr(fallback) or fallback]
+            else:
+                pools_rec = [_default_ipv4_pool_from_ip(ip)]
+
+        if update_database_entry(
+            database,
+            ip,
+            mismatch['asn'],
+            target_country,
+            target_country_name,
+            pools=pools_rec,
+            org=org_name,
+        ):
             print(f"{Colors.OKGREEN}{t('db_updated')}{Colors.ENDC}")
             
             print(f"\n{Colors.OKCYAN}{t('step3')}...{Colors.ENDC}")
@@ -2454,7 +3486,16 @@ def reclassify_asn(result: Dict, database: Dict, auto_confirm: bool = False) -> 
     
     return result
 
-def check_ip_range(start: str, end: str, database: Dict, max_ips: int = 256, auto_reclass: bool = False) -> List[Dict]:
+def check_ip_range(
+    start: str,
+    end: str,
+    database: Dict,
+    max_ips: int = 256,
+    auto_reclass: bool = False,
+    bgp_lookup: bool = False,
+    pdns_lookup: bool = False,
+    egress_check: bool = False,
+) -> List[Dict]:
     """Check IPs in range with a maximum limit."""
     try:
         start_ip = ipaddress.ip_address(start)
@@ -2474,7 +3515,13 @@ def check_ip_range(start: str, end: str, database: Dict, max_ips: int = 256, aut
 
     while current <= end_ip and count < max_ips:
         result = check_single_ip(
-            str(current), database, auto_reclass=auto_reclass, interactive_extras=False
+            str(current),
+            database,
+            auto_reclass=auto_reclass,
+            interactive_extras=False,
+            bgp_lookup=bgp_lookup,
+            pdns_lookup=pdns_lookup,
+            egress_check=egress_check,
         )
         results.append(result)
         current += 1
@@ -2482,10 +3529,17 @@ def check_ip_range(start: str, end: str, database: Dict, max_ips: int = 256, aut
 
     return results
 
-def check_asn_operator(asn_input: str, database: Dict, auto_reclass: bool = False, max_ips: int = 256) -> List[Dict]:
+def check_asn_operator(
+    asn_input: str,
+    database: Dict,
+    auto_reclass: bool = False,
+    bgp_lookup: bool = True,
+    pdns_lookup: bool = True,
+    egress_check: bool = True,
+) -> List[Dict]:
     """Check a single ASN by sampling one IP per pool."""
     asn_query = asn_input if asn_input.upper().startswith("AS") else f"AS{asn_input}"
-    asn_data = next((a for a in database['asn_data'] if a['asn'].upper() == asn_query.upper()), None)
+    asn_data = find_asn_entry(database, asn_query)
 
     if not asn_data:
         tty = sys.stdin.isatty() and sys.stdout.isatty()
@@ -2496,7 +3550,8 @@ def check_asn_operator(asn_input: str, database: Dict, auto_reclass: bool = Fals
     print(f"  {t('expected_country')}: {asn_data['expected_country']} ({asn_data['expected_country_name']})")
 
     results = []
-    for pool in asn_data['ip_pools'][:max(1, max_ips)]:
+    sample_pools = [p for p in asn_data['ip_pools'] if is_acceptable_pool(p)][:MAX_POOLS_SAMPLE_CHECK]
+    for pool in sample_pools:
         try:
             network = ipaddress.ip_network(pool, strict=False)
             result = check_single_ip(
@@ -2505,6 +3560,9 @@ def check_asn_operator(asn_input: str, database: Dict, auto_reclass: bool = Fals
                 auto_reclass=auto_reclass,
                 interactive_extras=False,
                 invoke_unknown_ip_flow=False,
+                bgp_lookup=bgp_lookup,
+                pdns_lookup=pdns_lookup,
+                egress_check=egress_check,
             )
             results.append(result)
         except ValueError:
@@ -2621,7 +3679,7 @@ def handle_network_diag_cli(args) -> None:
         delay = float(getattr(args, "trace_replay_delay", 0.25))
         network_diag.replay_trace_path(str(replay_arg), lang=lang, delay_sec=delay)
     if getattr(args, "speed_test", False):
-        network_diag.run_speed_test(lang=lang)
+        network_diag.run_speed_test(lang=lang, streams=getattr(args, "speed_streams", None))
     host = getattr(args, "trace_monitor_host", None)
     if host:
         host = str(host).strip()
@@ -2823,22 +3881,39 @@ def run_cli_mode(args):
                     database,
                     auto_reclass=args.auto_reclass,
                     interactive_extras=tty,
+                    bgp_lookup=cli_bgp_lookup_enabled(args),
+                    pdns_lookup=cli_pdns_lookup_enabled(args),
+                    egress_check=cli_egress_check_enabled(args),
                 )
             ]
         if args.ip_range:
+            if getattr(args, "ptr_scan", False):
+                run_ptr_range_scan_cli(
+                    args.ip_range[0],
+                    args.ip_range[1],
+                    max_ips=args.max_ips,
+                    qps=float(getattr(args, "ptr_qps", 10.0) or 10.0),
+                    save=bool(getattr(args, "save", False) or getattr(args, "ptr_save", False)),
+                )
+                return []
             return check_ip_range(
                 args.ip_range[0],
                 args.ip_range[1],
                 database,
                 max_ips=args.max_ips,
-                auto_reclass=args.auto_reclass
+                auto_reclass=args.auto_reclass,
+                bgp_lookup=cli_bgp_lookup_enabled(args, for_range=True),
+                pdns_lookup=cli_pdns_lookup_enabled(args, for_range=True),
+                egress_check=cli_egress_check_enabled(args, for_range=True),
             )
         if args.asn:
             return check_asn_operator(
                 args.asn,
                 database,
                 auto_reclass=args.auto_reclass,
-                max_ips=args.max_ips
+                bgp_lookup=cli_bgp_lookup_enabled(args),
+                pdns_lookup=cli_pdns_lookup_enabled(args),
+                egress_check=cli_egress_check_enabled(args),
             )
         return []
 
@@ -2860,7 +3935,7 @@ def run_cli_mode(args):
 
 def _run_check_deps_cli(args) -> None:
     """Delegate to scripts/check_deps.py (same repo, no extra pip package)."""
-    script = Path(__file__).resolve().parent / "scripts" / "check_deps.py"
+    script = REPO_ROOT / "scripts" / "check_deps.py"
     cmd: List[str] = [sys.executable, str(script)]
     groups = getattr(args, "check_deps_groups", None) or ["minimal"]
     for g in groups:
@@ -2878,6 +3953,29 @@ def main():
         _run_check_deps_cli(args)
         return
 
+    if getattr(args, "maintain_db", False):
+        load_language_config()
+        if CURRENT_LANGUAGE is None:
+            CURRENT_LANGUAGE = "en"
+        database = load_database()
+        ok, reason = perform_database_update(database)
+        sys.exit(0 if ok else 1)
+
+    if getattr(args, "validate_db", False):
+        load_language_config()
+        if CURRENT_LANGUAGE is None:
+            CURRENT_LANGUAGE = "en"
+        database = load_database()
+        report = validate_asn_database(database)
+        print_database_maintenance_report(
+            {
+                "maintenance": database.get("metadata", {}).get("last_maintenance", {}),
+                "stats": report.get("stats", {}),
+                "issues": report.get("issues", []),
+            }
+        )
+        sys.exit(0 if report.get("ok") else 1)
+
     # Load saved language
     load_language_config()
     dns_requested = bool(
@@ -2887,7 +3985,10 @@ def main():
     )
     owasp_requested = bool(
         getattr(args, "owasp_headers", None)
+        or getattr(args, "owasp_tls", None)
         or getattr(args, "owasp_amass", None)
+        or getattr(args, "owasp_takeover", False)
+        or getattr(args, "owasp_takeover_file", None)
         or getattr(args, "owasp_nettacker", None)
         or getattr(args, "owasp_wstg", False)
         or getattr(args, "owasp_pipeline", False)
@@ -2907,6 +4008,20 @@ def main():
         CURRENT_LANGUAGE = "en"
 
     print_startup_connection_banner()
+
+    if args.ip_range and getattr(args, "ptr_scan", False) and not (args.ip or args.asn):
+        load_language_config()
+        if CURRENT_LANGUAGE is None:
+            CURRENT_LANGUAGE = "en"
+        print_startup_connection_banner()
+        run_ptr_range_scan_cli(
+            args.ip_range[0],
+            args.ip_range[1],
+            max_ips=args.max_ips,
+            qps=float(getattr(args, "ptr_qps", 10.0) or 10.0),
+            save=bool(getattr(args, "save", False) or getattr(args, "ptr_save", False)),
+        )
+        return
 
     if args.ip or args.ip_range or args.asn:
         run_cli_mode(args)
@@ -2975,30 +4090,48 @@ def main():
                 end = input(f"{Colors.OKCYAN}End IP: {Colors.ENDC}").strip()
                 if start and end:
                     try:
-                        start_ip = ipaddress.ip_address(start)
-                        end_ip = ipaddress.ip_address(end)
-                        current = start_ip
-                        count = 0
-                        max_ips = 10
-                        results = []
-                        
-                        if CURRENT_LANGUAGE == "ru":
-                            print(f"\n{Colors.OKCYAN}Сканирование {max_ips} IP...{Colors.ENDC}\n")
-                        else:
+                        mode = input(f"{Colors.OKCYAN}{t('ptr_range_prompt_mode')}{Colors.ENDC}").strip() or "1"
+                        if mode == "2":
+                            qps_raw = input(f"{Colors.OKCYAN}{t('ptr_qps_prompt')}{Colors.ENDC}").strip()
+                            qps = 10.0
+                            if qps_raw:
+                                try:
+                                    qps = max(0.5, float(qps_raw))
+                                except ValueError:
+                                    qps = 10.0
+                            session = run_ptr_range_scan_cli(start, end, max_ips=256, qps=qps, save=False)
+                            save_ans = input(
+                                f"{Colors.WARNING}{t('save_report_offer')}{Colors.ENDC}",
+                                end="",
+                            ).strip().lower()
+                            if save_ans == "y" and session.get("success"):
+                                lang = CURRENT_LANGUAGE if CURRENT_LANGUAGE in ("en", "ru") else "en"
+                                try:
+                                    path = ptr_scan.save_ptr_session(session)
+                                    print(f"{Colors.OKGREEN}{ptr_scan.msg(lang, 'save_ok', path=path)}{Colors.ENDC}")
+                                except OSError as exc:
+                                    print(f"{Colors.FAIL}{ptr_scan.msg(lang, 'save_fail', err=exc)}{Colors.ENDC}")
+                        elif mode == "1":
+                            start_ip = ipaddress.ip_address(start)
+                            end_ip = ipaddress.ip_address(end)
+                            current = start_ip
+                            count = 0
+                            max_ips = 10
+                            results = []
                             print(f"\n{Colors.OKCYAN}Scanning {max_ips} IPs...{Colors.ENDC}\n")
-                        
-                        while current <= end_ip and count < max_ips:
-                            database = load_database()
-                            result = check_single_ip(
-                                str(current), database, interactive_extras=False
-                            )
-                            results.append(result)
-                            current += 1
-                            count += 1
-                        
-                        if results:
-                            show_summary(results)
-                            offer_save_report(results)
+                            while current <= end_ip and count < max_ips:
+                                database = load_database()
+                                result = check_single_ip(
+                                    str(current), database, interactive_extras=False
+                                )
+                                results.append(result)
+                                current += 1
+                                count += 1
+                            if results:
+                                show_summary(results)
+                                offer_save_report(results)
+                        else:
+                            print(f"{Colors.WARNING}{t('ptr_range_invalid_mode')}{Colors.ENDC}")
                     except ValueError:
                         if CURRENT_LANGUAGE == "ru":
                             print(f"{Colors.FAIL}❌ Неверный IP адрес{Colors.ENDC}")
@@ -3014,7 +4147,7 @@ def main():
                 if asn_input:
                     asn_query = asn_input if asn_input.startswith('AS') else f'AS{asn_input}'
                     database = load_database()
-                    asn_data = next((a for a in database['asn_data'] if a['asn'].upper() == asn_query.upper()), None)
+                    asn_data = find_asn_entry(database, asn_query)
                     
                     if asn_data:
                         if CURRENT_LANGUAGE == "ru":
@@ -3139,7 +4272,7 @@ def show_help():
         
         print(f"{Colors.OKCYAN}2. Проверить диапазон IP{Colors.ENDC}")
         print("   Введите начальный и конечный IP")
-        print("   Проверяет до 10 IP адресов из диапазона\n")
+        print("   Режим 1: geo (до 10 IP) · режим 2: PTR-обход (до 256, rate-limit)\n")
         
         print(f"{Colors.OKCYAN}3. Проверить ASN оператора{Colors.ENDC}")
         print("   Введите ASN (например: AS12389 или 12389)")
@@ -3154,7 +4287,7 @@ def show_help():
         print("   Обновляет метаданные БД и дату последнего обновления\n")
 
         print(f"{Colors.OKCYAN}7. Настроить API ключи обогащения{Colors.ENDC}")
-        print("   Локальное сохранение ключей MaxMind / IP2Location\n")
+        print("   Локальное сохранение ключей MaxMind / IP2Location / VirusTotal\n")
 
         print(f"{Colors.OKCYAN}8. Выбрать язык{Colors.ENDC}")
         print("   Переключение между English и Русский\n")
@@ -3179,7 +4312,8 @@ def show_help():
             "           --dns DOMAIN [--dns-crtsh] [--dns-wordlist FILE] [--dns-save] [--dns-export out.html]\n",
         )
         print(
-            "           --owasp-headers URL | --owasp-amass DOMAIN | --owasp-nettacker HOST\n",
+            "           --owasp-headers URL | --owasp-tls HOST | --owasp-amass DOMAIN [--owasp-takeover]\n"
+            "           | --owasp-takeover-file FILE | --owasp-nettacker HOST\n",
         )
         print(
             "           --owasp-pipeline [--owasp-ip IP] [--owasp-domain DOM] [--owasp-save]\n",
@@ -3206,7 +4340,7 @@ def show_help():
         
         print(f"{Colors.OKCYAN}2. Check IP range{Colors.ENDC}")
         print("   Enter start and end IP addresses")
-        print("   Checks up to 10 IPs from the range\n")
+        print("   Mode 1: geo (up to 10 IPs) · mode 2: PTR sweep (up to 256, rate-limited)\n")
         
         print(f"{Colors.OKCYAN}3. Check ASN operator{Colors.ENDC}")
         print("   Enter ASN (e.g.: AS12389 or 12389)")
@@ -3221,7 +4355,7 @@ def show_help():
         print("   Refreshes DB metadata and last update timestamp\n")
 
         print(f"{Colors.OKCYAN}7. Enrichment API keys{Colors.ENDC}")
-        print("   Local setup for MaxMind / IP2Location keys\n")
+        print("   Local setup for MaxMind / IP2Location / VirusTotal keys\n")
 
         print(f"{Colors.OKCYAN}8. Change language{Colors.ENDC}")
         print("   Switch between English and Русский\n")
@@ -3240,7 +4374,8 @@ def show_help():
             "           --dns DOMAIN [--dns-crtsh] [--dns-wordlist FILE] [--dns-save] [--dns-export out.html]\n",
         )
         print(
-            "           --owasp-headers URL | --owasp-amass DOMAIN | --owasp-nettacker HOST\n",
+            "           --owasp-headers URL | --owasp-tls HOST | --owasp-amass DOMAIN [--owasp-takeover]\n"
+            "           | --owasp-takeover-file FILE | --owasp-nettacker HOST\n",
         )
         print(
             "           --owasp-pipeline [--owasp-ip IP] [--owasp-domain DOM] [--owasp-save]\n",
