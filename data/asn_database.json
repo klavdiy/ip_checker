@@ -1346,6 +1346,8 @@
       "merge_groups": 0,
       "coarse_pools_removed": 0,
       "maintained_at": "2026-05-19T17:06:32.412909"
-    }
+    },
+    "schema_version": "fnkit.asn_database/2",
+    "schema_migrated_at": "2026-05-19T15:13:21+00:00"
   }
 }

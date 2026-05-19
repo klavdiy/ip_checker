@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from paths import PTR_SESSIONS_DIR
-PTR_FORMAT_V1 = "fnkit_ptr_v1"
+from schema import DocumentKind, FORMAT_PTR_V1 as PTR_FORMAT_V1, save_json_file
 
 STRINGS: Dict[str, Dict[str, str]] = {
     "en": {
@@ -253,5 +253,5 @@ def save_ptr_session(session: Dict[str, Any], path: Optional[Path] = None) -> Pa
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         path = PTR_SESSIONS_DIR / f"ptr_{session.get('start', 'x')}_{ts}.json"
     path = Path(path)
-    path.write_text(json.dumps(session, indent=2, ensure_ascii=False), encoding="utf-8")
+    save_json_file(path, DocumentKind.PTR_SESSION, session)
     return path

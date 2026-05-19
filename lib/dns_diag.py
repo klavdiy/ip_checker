@@ -37,8 +37,14 @@ except ImportError:
     HAS_DNSPYTHON = False
 
 from paths import DNS_GRAPH_DIR, DNS_SESSIONS_DIR
-DNS_FORMAT_V1 = "fnkit_dns_v1"
-LEGACY_DNS_FORMAT_V1 = "ip_checker_dns_v1"
+from schema import (
+    DocumentKind,
+    FORMAT_DNS_V1 as DNS_FORMAT_V1,
+    LEGACY_FORMAT_DNS_V1 as LEGACY_DNS_FORMAT_V1,
+    is_session_format_valid,
+    load_json_file,
+    save_json_file,
+)
 
 C_RESET = "\033[0m"
 C_BOLD = "\033[1m"
@@ -672,16 +678,13 @@ def crawl_dns(
 def save_session(session: Dict[str, Any], path: Optional[Path] = None) -> Path:
     ensure_dirs()
     out = path or default_session_path(str(session.get("seed", "unknown")))
-    out.parent.mkdir(parents=True, exist_ok=True)
-    with open(out, "w", encoding="utf-8") as f:
-        json.dump(session, f, indent=2, ensure_ascii=False)
+    save_json_file(out, DocumentKind.DNS_SESSION, session)
     return out
 
 
 def load_session(path: Path) -> Dict[str, Any]:
-    with open(path, encoding="utf-8") as f:
-        data = json.load(f)
-    if data.get("format") not in (DNS_FORMAT_V1, LEGACY_DNS_FORMAT_V1):
+    data = load_json_file(path, DocumentKind.DNS_SESSION)
+    if not is_session_format_valid(data, DocumentKind.DNS_SESSION):
         raise ValueError("unknown session format")
     return data
 

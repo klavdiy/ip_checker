@@ -26,6 +26,8 @@ from paths import DATABASE_FILE, ensure_data_layout, ensure_lib_path  # noqa: E4
 ensure_data_layout()
 ensure_lib_path()
 
+from schema import DocumentKind, load_json_file  # noqa: E402
+
 from fnkit import (  # noqa: E402
     load_database,
     maintain_asn_database,
@@ -50,7 +52,7 @@ def main() -> int:
         save_database(database)
     else:
         try:
-            database = json.loads(DATABASE_FILE.read_text(encoding="utf-8"))
+            database = load_json_file(DATABASE_FILE, DocumentKind.ASN_DATABASE)
         except (OSError, json.JSONDecodeError) as exc:
             print(f"Cannot read {DATABASE_FILE}: {exc}", file=sys.stderr)
             return 1

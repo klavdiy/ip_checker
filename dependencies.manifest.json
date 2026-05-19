@@ -56,6 +56,7 @@
       "modules": [
         "fnkit.py",
         "paths.py",
+        "schema.py",
         "lib/network_diag.py",
         "lib/pcap_diag.py",
         "lib/dns_diag.py",

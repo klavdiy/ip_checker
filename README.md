@@ -170,6 +170,7 @@ Windows: `.\scripts\install-deps.ps1 -Profile minimal` → `.\fnkit.ps1 -i 8.8.8
 | Документ | Содержание |
 |----------|------------|
 | **[docs/USER_GUIDE.md](docs/USER_GUIDE.md)** | Полный мануал: все пункты меню, флаги CLI, форматы JSON, troubleshooting |
+| [docs/SCHEMA.md](docs/SCHEMA.md) | Версии схем JSON, миграции, совместимость с `ip_checker_*` |
 | [docs/SBOM.md](docs/SBOM.md) | Зависимости, регенерация SBOM |
 | [docs/OWASP_INTEGRATION.md](docs/OWASP_INTEGRATION.md) | OWASP pipeline, сторонние инструменты |
 | [docs/OWASP_THIRD_PARTY.md](docs/OWASP_THIRD_PARTY.md) | Лицензии, authorized use |
@@ -179,7 +180,7 @@ Windows: `.\scripts\install-deps.ps1 -Profile minimal` → `.\fnkit.ps1 -i 8.8.8
 ## Структура проекта
 
 ```text
-fnkit.py, fnkit.sh, fnkit.ps1, paths.py
+fnkit.py, fnkit.sh, fnkit.ps1, paths.py, schema.py
 lib/          network_diag, dns_diag, pcap_diag, owasp_toolkit, …
 data/         asn_database.json, config/, sessions/, pcap/, cache/
 scripts/      check_deps, validate_asn_db, install-deps

@@ -29,8 +29,13 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 import subdomain_takeover
 
 from paths import OWASP_SESSIONS_DIR, REPO_ROOT
-OWASP_FORMAT_V1 = "fnkit_owasp_v1"
-LEGACY_OWASP_FORMAT_V1 = "ip_checker_owasp_v1"
+from schema import (
+    DocumentKind,
+    FORMAT_OWASP_V1 as OWASP_FORMAT_V1,
+    LEGACY_FORMAT_OWASP_V1 as LEGACY_OWASP_FORMAT_V1,
+    load_json_file,
+    save_json_file,
+)
 
 C_RESET = "\033[0m"
 C_BOLD = "\033[1m"
@@ -951,7 +956,7 @@ def save_session(session: Dict[str, Any]) -> Path:
     label = re.sub(r"[^\w.-]+", "_", str(label))[:40]
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     path = OWASP_SESSIONS_DIR / f"owasp_{label}_{stamp}.json"
-    path.write_text(json.dumps(session, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    save_json_file(path, DocumentKind.OWASP_SESSION, session)
     return path
 
 
@@ -1160,7 +1165,7 @@ def run_owasp_menu(lang: str) -> None:
             else:
                 path = Path(pick).expanduser()
             try:
-                session = json.loads(path.read_text(encoding="utf-8"))
+                session = load_json_file(path, DocumentKind.OWASP_SESSION)
                 print_session_summary(session, lang=lang)
             except (OSError, json.JSONDecodeError) as exc:
                 print(f"{C_FAIL}{exc}{C_RESET}")

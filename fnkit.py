@@ -34,6 +34,7 @@ from paths import (
     ensure_data_layout,
     ensure_lib_path,
 )
+from schema import DocumentKind, load_json_file, save_json_file, validate_schema_version
 
 ensure_data_layout()
 ensure_lib_path()
@@ -669,16 +670,15 @@ def select_language_menu():
         save_language_config("en")
 
 def load_database() -> Dict:
-    """Load ASN database from JSON file"""
+    """Load ASN database from JSON file (schema migration + compatibility layer)."""
     try:
-        with open(DATABASE_FILE, 'r', encoding='utf-8') as f:
-            database = json.load(f)
-            ensure_database_metadata(database)
-            merged = dedupe_asn_database(database)
-            if merged:
-                save_database(database)
-                print(f"{Colors.WARNING}{t('asn_dedupe_saved').format(n=merged)}{Colors.ENDC}")
-            return database
+        database = load_json_file(DATABASE_FILE, DocumentKind.ASN_DATABASE)
+        ensure_database_metadata(database)
+        merged = dedupe_asn_database(database)
+        if merged:
+            save_database(database)
+            print(f"{Colors.WARNING}{t('asn_dedupe_saved').format(n=merged)}{Colors.ENDC}")
+        return database
     except FileNotFoundError:
         print(f"{Colors.FAIL}Error: Database file not found{Colors.ENDC}")
         sys.exit(1)
@@ -687,9 +687,8 @@ def load_database() -> Dict:
         sys.exit(1)
 
 def save_database(database: Dict) -> None:
-    """Persist ASN database to JSON file."""
-    with open(DATABASE_FILE, 'w', encoding='utf-8') as f:
-        json.dump(database, f, indent=2, ensure_ascii=False)
+    """Persist ASN database to JSON file (current schema version)."""
+    save_json_file(DATABASE_FILE, DocumentKind.ASN_DATABASE, database)
 
 def ensure_database_metadata(database: Dict) -> None:
     """Ensure required metadata fields exist."""
@@ -946,6 +945,8 @@ def validate_asn_database(database: Dict) -> Dict:
     dupe_keys = [k for k, c in Counter(k for k in keys if k).items() if c > 1]
     if dupe_keys:
         issues.append(f"duplicate ASN keys: {sorted(dupe_keys)}")
+
+    issues.extend(validate_schema_version(database, DocumentKind.ASN_DATABASE))
 
     meta = database.setdefault("metadata", {})
     actual_asns = len(asn_data)
@@ -2775,10 +2776,9 @@ def save_results(results: List[Dict]) -> bool:
         payload = {
             "timestamp": datetime.now().isoformat(),
             "results": results,
-            "mismatches_found": sum(1 for r in results if r.get("mismatches"))
+            "mismatches_found": sum(1 for r in results if r.get("mismatches")),
         }
-        with open(RESULTS_FILE, "w", encoding="utf-8") as f:
-            json.dump(payload, f, indent=2, ensure_ascii=False)
+        save_json_file(RESULTS_FILE, DocumentKind.SCAN_RESULTS, payload)
         return True
     except Exception as e:
         print(f"{Colors.FAIL}Failed to save results: {e}{Colors.ENDC}")

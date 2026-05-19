@@ -49,8 +49,14 @@ C_WARN = "\033[93m"
 C_FAIL = "\033[91m"
 
 from paths import TRACE_SESSIONS_DIR
-TRACE_FORMAT_V1 = "fnkit_trace_v1"
-LEGACY_TRACE_FORMAT_V1 = "ip_checker_trace_v1"
+from schema import (
+    DocumentKind,
+    FORMAT_TRACE_V1 as TRACE_FORMAT_V1,
+    LEGACY_FORMAT_TRACE_V1 as LEGACY_TRACE_FORMAT_V1,
+    is_session_format_valid,
+    load_json_file,
+    save_json_file,
+)
 
 # pick_active_interface_for_trace_save() returns this if user aborts during selection
 _TRACE_IFACE_PICK_CANCELLED = object()
@@ -903,16 +909,14 @@ def offer_save_trace_session(
     if isinstance(capture_sel, str) and capture_sel.strip():
         payload["capture_iface"] = capture_sel.strip()
     try:
-        with open(save_path, "w", encoding="utf-8") as f:
-            json.dump(payload, f, indent=2, ensure_ascii=False)
+        save_json_file(save_path, DocumentKind.TRACE_SESSION, payload)
         print(f"{C_GREEN}{localized(lang, 'trace_save_ok', path=str(save_path))}{C_RESET}")
     except OSError as e:
         print(f"{C_FAIL}{localized(lang, 'trace_save_fail', err=e)}{C_RESET}")
 
 
 def load_trace_session_file(path: Path) -> Dict[str, Any]:
-    with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
+    return load_json_file(path, DocumentKind.TRACE_SESSION)
 
 
 def replay_trace_session(
@@ -923,8 +927,7 @@ def replay_trace_session(
     source_label: Optional[str] = None,
 ) -> bool:
     """Replay rounds from loaded session dict. Returns False if format invalid, True otherwise."""
-    fmt = data.get("format")
-    if fmt not in (TRACE_FORMAT_V1, LEGACY_TRACE_FORMAT_V1):
+    if not is_session_format_valid(data, DocumentKind.TRACE_SESSION):
         print(f"{C_FAIL}{localized(lang, 'trace_replay_bad')}{C_RESET}")
         return False
     target = data.get("target", "?")

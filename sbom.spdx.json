@@ -42,7 +42,7 @@
         }
       ],
       "primaryPackagePurpose": "FRAMEWORK",
-      "description": "Modules: fnkit.py, paths.py, lib/network_diag.py, lib/pcap_diag.py, lib/dns_diag.py, lib/owasp_toolkit.py, lib/pdns_lookup.py, lib/ip_egress_check.py, lib/ptr_scan.py, lib/subdomain_takeover.py"
+      "description": "Modules: fnkit.py, paths.py, schema.py, lib/network_diag.py, lib/pcap_diag.py, lib/dns_diag.py, lib/owasp_toolkit.py, lib/pdns_lookup.py, lib/ip_egress_check.py, lib/ptr_scan.py, lib/subdomain_takeover.py"
     },
     {
       "SPDXID": "SPDXRef-510544e60710",

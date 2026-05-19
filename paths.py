@@ -86,11 +86,27 @@ def ensure_data_layout() -> None:
             continue
         shutil.move(str(src), str(dst))
 
+    try:
+        from schema import run_startup_migrations
+
+        upgraded = run_startup_migrations()
+        if upgraded:
+            import sys
+
+            print(
+                f"[fnkit] Migrated {len(upgraded)} data file(s) to current schema.",
+                file=sys.stderr,
+            )
+    except Exception as exc:
+        import sys
+
+        print(f"[fnkit] Schema migration warning: {exc}", file=sys.stderr)
+
 
 def ensure_lib_path() -> None:
-    """Allow ``import network_diag`` etc. from ``lib/``."""
+    """Allow ``import network_diag`` from ``lib/`` and ``import schema`` from repo root."""
     import sys
 
-    lib = str(LIB_DIR)
-    if lib not in sys.path:
-        sys.path.insert(0, lib)
+    for entry in (str(REPO_ROOT), str(LIB_DIR)):
+        if entry not in sys.path:
+            sys.path.insert(0, entry)
