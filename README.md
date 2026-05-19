@@ -1,16 +1,14 @@
 # FieldNet Kit (FNkit)
 
-**Portable network intelligence from one terminal** — trust IP/ASN against your baseline, see BGP + passive DNS context, then drill into DNS graph, trace, PCAP, or OWASP checks without switching tools.
+**Портативная сетевая разведка из одного терминала** — сверка IP/ASN с вашей базой, контекст BGP и passive DNS, затем DNS-граф, trace, PCAP или OWASP-проверки без переключения между инструментами.
 
-> *Ранее репозиторий: `ip_checker` · GitHub: [klavdiy/fieldnetkit](https://github.com/klavdiy/fieldnetkit)*
+> Ранее репозиторий назывался *ip_checker*. GitHub: **[klavdiy/fieldnetkit](https://github.com/klavdiy/fieldnetkit)**
 
 ---
 
-## 15-second pitch
+## За 15 секунд
 
-You paste an IP from a firewall alert, ticket, or `kubectl get svc`. **FNkit answers in one pass:** does geo match the ASN you expect, who owns the prefix *right now* (BGP), was this IP on a Tor exit or a CDN yesterday (egress + passive DNS), and where is the abuse contact — before you open six browser tabs or guess from a `/8` in CMDB.
-
-**FNkit за 15 секунд:** IP из алерта → совпадает ли страна с вашим ASN, живой BGP origin, не Tor/прокси ли egress, что было на адресе в passive DNS, куда писать по abuse — без зоопарка вкладок.
+Вставляете IP из алерта файрвола, тикета или `kubectl get svc`. **FNkit отвечает за один проход:** совпадает ли гео с ожидаемым ASN, кто владеет префиксом *прямо сейчас* (BGP), был ли адрес на Tor exit или CDN вчера (egress + passive DNS), куда писать по abuse — до того как вы откроете шесть вкладок или поверите `/8` в CMDB.
 
 ```bash
 ./fnkit.sh -i 203.0.113.45          # интерактивно + меню инструментов
@@ -19,18 +17,18 @@ python3 fnkit.py -i 8.8.8.8 -s      # CLI + отчёт в data/scan_results.json
 
 ---
 
-## When FNkit saves the day
+## Когда FNkit реально выручает
 
-| Moment | Without FNkit | With FNkit |
-|--------|---------------|------------|
-| **SOC: страна «не та»** | Спор ip-api vs CMDB, ручной whois | Mismatch + quarantine: whois ≠ geo → **no false DB write**; BGP origin vs ваша база |
-| **Incident: новый IP в логах** | «Это наш VPS или взлом?» | Egress: Tor/proxy/hosting + passive DNS: **кто ещё сидел на IP** |
-| **AppSec: поддомен после утечки DNS** | Отдельно Amass, headers, takeover-чеклисты | Pipeline: headers → TLS → Amass → **dangling CNAME** (~50 fingerprints) |
-| **SRE: «стало медленно»** | speedtest в браузере, trace в другом окне | Меню **4**: speed-test + **MTR-style trace** → JSON → replay позже |
-| **Forensics: pcap на ноутбуке** | Wireshark + ручной DNS | PCAP → DNS crawl → **HTML-граф** в `data/dns_graph/` |
+| Ситуация | Без FNkit | С FNkit |
+|----------|-----------|---------|
+| **SOC: страна «не та»** | Спор ip-api vs CMDB, ручной whois | Mismatch + карантин: whois ≠ geo → **без ложной записи в БД**; BGP origin vs ваша база |
+| **Инцидент: новый IP в логах** | «Это наш VPS или взлом?» | Egress: Tor/proxy/hosting + passive DNS: **кто ещё сидел на этом IP** |
+| **AppSec: поддомен после утечки DNS** | Отдельно Amass, headers, чеклисты takeover | Pipeline: headers → TLS → Amass → **висящий CNAME** (~50 отпечатков) |
+| **SRE: «стало медленно»** | speedtest в браузере, trace в другом окне | Меню **4**: speed-test + **trace в стиле MTR** → JSON → replay позже |
+| **Форензика: pcap на ноутбуке** | Wireshark + ручной DNS | PCAP → DNS crawl → **HTML-граф** в `data/dns_graph/` |
 
 <details>
-<summary><strong>Example: mismatch that would have polluted your ASN DB</strong></summary>
+<summary><strong>Пример: mismatch, который испортил бы вашу ASN-базу</strong></summary>
 
 ```text
 Checking IP: 195.20.1.1
@@ -39,29 +37,29 @@ BGP origin: AS12389 — matches DB ASN, geo does not
 ⚠ Conflict quarantined: WHOIS and ip-api disagree. No DB write performed.
 ```
 
-You keep investigating instead of auto-tagging the whole AS as «Germany».
+Вы продолжаете расследование, а не помечаете весь AS как «Германия» автоматически.
 
 </details>
 
 ---
 
-## Architecture
+## Архитектура
 
 ```mermaid
 flowchart TB
-  subgraph entry["Entry"]
+  subgraph entry["Точка входа"]
     CLI["fnkit.py / fnkit.sh"]
     PATHS["paths.py"]
   end
 
-  subgraph core["Core checks"]
-    GEO["IP / ASN geo + local DB"]
+  subgraph core["Базовые проверки"]
+    GEO["IP / ASN + локальная БД"]
     BGP["Team Cymru BGP"]
     PDNS["Passive DNS / RIPE Stat"]
     EGRESS["Egress: Tor, proxy, hosting"]
   end
 
-  subgraph lib["lib/ modules"]
+  subgraph lib["Модули lib/"]
     NET["network_diag"]
     DNS["dns_diag"]
     PCAP["pcap_diag"]
@@ -71,7 +69,7 @@ flowchart TB
 
   subgraph data["data/"]
     DB[(asn_database.json)]
-    SESS[(sessions/ trace dns owasp ptr)]
+    SESS[(sessions: trace dns owasp ptr)]
     OUT[(scan_results pcap dns_graph)]
   end
 
@@ -94,47 +92,47 @@ flowchart TB
   GEO --> OUT
 ```
 
-**Layout:** `fnkit.py` at repo root · Python modules in `lib/` · databases, config, sessions under `data/` (legacy root paths migrate on first run).
+**Структура:** `fnkit.py` в корне репозитория · модули Python в `lib/` · базы, конфиг и сессии в `data/` (старые пути из корня переносятся при первом запуске).
 
 ---
 
-## Why FNkit instead of …
+## Почему FNkit, а не …
 
-| Need | Typical stack | FNkit |
-|------|----------------|-------|
-| «Whose IP is this?» | whois + ip-api in browser | One TUI/CLI: geo + **expected country from your DB** + mismatch/quarantine |
-| Prefix truth | RIPEstat / bgp.tools | **Live Cymru origin** vs static pools; pools **≥ /20**, no false `/8` match |
-| Historical context | VirusTotal, SecurityTrails tabs | **passive DNS** + optional API keys (menu 7) in same report |
-| Attack surface | Amass + httpx + custom scripts | **OWASP pipeline**: headers (value checks), TLS, Amass, takeover |
-| DNS cartography | dig loops, spreadsheets | **DNS graph** crawl, crt.sh, HTML export, resolver diff |
-| Laptop forensics | Wireshark only | **PCAP capture/show** + DNS seeds from `tshark` |
+| Задача | Обычный набор | FNkit |
+|--------|---------------|-------|
+| «Чей это IP?» | whois + ip-api в браузере | Один TUI/CLI: гео + **ожидаемая страна из вашей БД** + mismatch/карантин |
+| Правда о префиксе | RIPEstat / bgp.tools | **Живой Cymru origin** vs статические пулы; пулы **≥ /20**, без ложного match по `/8` |
+| Исторический контекст | Вкладки VirusTotal, SecurityTrails | **passive DNS** + опциональные API-ключи (меню 7) в том же отчёте |
+| Поверхность атаки | Amass + httpx + свои скрипты | **OWASP pipeline**: headers (проверка значений), TLS, Amass, takeover |
+| Карта DNS | циклы dig, таблицы | **DNS-граф**: crawl, crt.sh, HTML, сравнение резолверов |
+| Форензика на ноутбуке | только Wireshark | **Захват/просмотр PCAP** + DNS-seed из `tshark` |
 
-FNkit is not a SaaS scanner replacement — it is a **field workbench** when you already have shell access and need defensible answers fast, offline-friendly where possible.
+FNkit не заменяет SaaS-сканеры — это **полевой верстак**, когда у вас уже есть shell и нужны обоснованные ответы быстро, по возможности без лишних облаков.
 
 ---
 
-## Screenshots
+## Скриншоты
 
-> Add GIFs under `docs/assets/` and link them here (PRs welcome).
+> Добавьте GIF/PNG в `docs/assets/` и пропишите ссылки здесь (PR приветствуются).
 
-| Screen | File (planned) |
-|--------|----------------|
-| Egress banner + main menu | `docs/assets/menu-main.png` |
-| IP mismatch + quarantine | `docs/assets/ip-mismatch.png` |
-| Trace monitor (TTY) | `docs/assets/trace-monitor.gif` |
-| DNS HTML graph | `docs/assets/dns-graph.png` |
-| OWASP secure headers report | `docs/assets/owasp-headers.png` |
+| Экран | Файл (план) |
+|-------|-------------|
+| Баннер egress + главное меню | `docs/assets/menu-main.png` |
+| IP mismatch + карантин | `docs/assets/ip-mismatch.png` |
+| Монитор маршрута (TTY) | `docs/assets/trace-monitor.gif` |
+| HTML DNS-граф | `docs/assets/dns-graph.png` |
+| OWASP secure headers | `docs/assets/owasp-headers.png` |
 
-Until assets land, run locally:
+Пока нет ассетов — запустите локально:
 
 ```bash
-./fnkit.sh    # menu + egress frame
+./fnkit.sh    # меню + рамка egress
 python3 fnkit.py -i 1.1.1.1 --owasp-headers https://example.com
 ```
 
 ---
 
-## Quick start
+## Быстрый старт
 
 ```bash
 chmod +x fnkit.sh scripts/install-deps.sh
@@ -150,35 +148,35 @@ python3 fnkit.py -i 8.8.8.8
 
 Windows: `.\scripts\install-deps.ps1 -Profile minimal` → `.\fnkit.ps1 -i 8.8.8.8`
 
-Optional: `pip install -r requirements-dns.txt` (DNS menu), `requirements-optional.txt` (MaxMind / IP2Location).
+Опционально: `pip install -r requirements-dns.txt` (меню DNS), `requirements-optional.txt` (MaxMind / IP2Location).
 
 ---
 
-## What you get (at a glance)
+## Что внутри (кратко)
 
-| Area | Highlights |
-|------|------------|
-| **Trust** | Local ASN DB, geo mismatch, auto-reclass with quarantine |
-| **Context** | BGP origin, passive DNS, egress/NAT signals |
-| **Diagnostics** | Speed-test, parallel hop monitor, PCAP |
-| **DNS** | BFS crawl, crt.sh, resolver compare, vis-network HTML |
-| **Security** | OWASP headers/TLS, Amass, subdomain takeover, WSTG links |
-| **Ops** | `data/` layout, SBOM, CI validate, `--maintain-db` |
-
----
-
-## Documentation
-
-| Doc | Contents |
-|-----|----------|
-| **[docs/USER_GUIDE.md](docs/USER_GUIDE.md)** | Full manual: every menu item, CLI flags, JSON formats, troubleshooting |
-| [docs/SBOM.md](docs/SBOM.md) | Dependencies, SBOM regeneration |
-| [docs/OWASP_INTEGRATION.md](docs/OWASP_INTEGRATION.md) | OWASP pipeline, third-party tools |
-| [docs/OWASP_THIRD_PARTY.md](docs/OWASP_THIRD_PARTY.md) | Licenses, authorized use |
+| Область | Возможности |
+|---------|-------------|
+| **Доверие** | Локальная ASN-БД, geo mismatch, авто-переклассификация с карантином |
+| **Контекст** | BGP origin, passive DNS, сигналы egress/NAT |
+| **Диагностика** | Speed-test, параллельный монитор хопов, PCAP |
+| **DNS** | BFS crawl, crt.sh, сравнение резолверов, HTML vis-network |
+| **Безопасность** | OWASP headers/TLS, Amass, subdomain takeover, ссылки WSTG |
+| **Эксплуатация** | Раскладка `data/`, SBOM, CI validate, `--maintain-db` |
 
 ---
 
-## Project layout
+## Документация
+
+| Документ | Содержание |
+|----------|------------|
+| **[docs/USER_GUIDE.md](docs/USER_GUIDE.md)** | Полный мануал: все пункты меню, флаги CLI, форматы JSON, troubleshooting |
+| [docs/SBOM.md](docs/SBOM.md) | Зависимости, регенерация SBOM |
+| [docs/OWASP_INTEGRATION.md](docs/OWASP_INTEGRATION.md) | OWASP pipeline, сторонние инструменты |
+| [docs/OWASP_THIRD_PARTY.md](docs/OWASP_THIRD_PARTY.md) | Лицензии, authorized use |
+
+---
+
+## Структура проекта
 
 ```text
 fnkit.py, fnkit.sh, fnkit.ps1, paths.py
@@ -190,9 +188,9 @@ docs/         USER_GUIDE, SBOM, OWASP
 
 ---
 
-## Community & license
+## Сообщество и лицензия
 
 - [Contributing](CONTRIBUTING.md) · [Code of Conduct](CODE_OF_CONDUCT.md) · [Security](.github/SECURITY.md)
-- **License:** [MIT](LICENSE)
+- **Лицензия:** [MIT](LICENSE)
 
-**Authorized use only** for targets you own or have permission to test (nmap, Amass, DNS brute, Nettacker).
+**Только с разрешением** на цели, которыми вы владеете или имеете право тестировать (nmap, Amass, DNS brute, Nettacker).
